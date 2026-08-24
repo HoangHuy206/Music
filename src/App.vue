@@ -785,7 +785,7 @@ async function handlePlayFromSearchResult(track, queue = null) {
 
   await nextTick();
   if (playerRef.value && typeof playerRef.value.playSong === 'function') {
-    playerRef.value.playSong(track, null, { isFromSearch: true });
+    playerRef.value.playSong(track, queue, { isFromSearch: true });
   }
 }
 
@@ -802,7 +802,7 @@ async function handleOpenPlayerFromSearch(track, queue = null) {
   currentTab.value = 'player';
   await nextTick();
   if (playerRef.value && typeof playerRef.value.playSong === 'function') {
-    playerRef.value.playSong(track, null, { isFromSearch: true });
+    playerRef.value.playSong(track, queue, { isFromSearch: true });
   }
 }
 

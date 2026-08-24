@@ -1038,18 +1038,27 @@ export const getRelatedSongs = async (req, res) => {
       'remix',
       'vinahouse',
       'vina hey',
+      'vinahey',
       'bass boost',
       'nonstop',
       'viet mix',
+      'vietmix',
+      'dj ',
       'dj',
       'club mix',
       'house mix',
       'electro',
       'trap mix',
       'speed up',
+      'sped up',
       'mashup',
       'hardstyle',
       'bounce',
+      'edm',
+      'phonk',
+      'dance mix',
+      'cuc cang',
+      'bay phong',
     ];
 
     // Helper to clean core title for deduplication
@@ -1147,7 +1156,7 @@ export const getRelatedSongs = async (req, res) => {
       const scTrackId = scNumericMatch[0];
       try {
         const relatedRes = await axios.get(`https://api-v2.soundcloud.com/tracks/${scTrackId}/related`, {
-          params: { client_id: scClientId, limit: 12 },
+          params: { client_id: scClientId, limit: 15 },
           timeout: 4000,
         });
         const relatedItems = relatedRes.data?.collection || [];
@@ -1159,8 +1168,9 @@ export const getRelatedSongs = async (req, res) => {
           if (!isRemixReq && trackDurationSec > 900) continue;
 
           const trackIsRemix = REMIX_FILTER_KEYWORDS.some((kw) => trackTitle.includes(kw));
+          // STRICT SEPARATION: NEVER allow cross-genre bleeding between Remix and Original Beat
           if (!isRemixReq && trackIsRemix) continue;
-          if (isRemixReq && !trackIsRemix && discoveredSongs.length > 1) continue;
+          if (isRemixReq && !trackIsRemix) continue;
 
           seenIds.add(track.id);
 
@@ -1240,11 +1250,11 @@ export const getRelatedSongs = async (req, res) => {
 
           const trackIsRemix = REMIX_FILTER_KEYWORDS.some((kw) => trackTitle.includes(kw));
 
-          // STRICT FILTER: If looking for Original Beat, reject any track with Remix keywords!
+          // STRICT SEPARATION: NEVER allow cross-genre bleeding
           if (!isRemixReq && trackIsRemix) {
             continue;
           }
-          if (isRemixReq && !trackIsRemix && discoveredSongs.length > 2) {
+          if (isRemixReq && !trackIsRemix) {
             continue;
           }
 

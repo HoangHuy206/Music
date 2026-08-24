@@ -2153,8 +2153,11 @@ function setupWebAudio(force = false) {
 }
 
 /**
- * Continuous Canvas Visualizer Animation Loop
+ * Continuous Canvas Visualizer Animation Loop (Ultra-smooth 60FPS Mobile Optimized)
  */
+const NUM_VISUALIZER_BARS = 32;
+const smoothBarValues = new Float32Array(NUM_VISUALIZER_BARS);
+
 function startVisualizerLoop() {
   if (animationFrameId) return;
 
@@ -2188,7 +2191,9 @@ function startVisualizerLoop() {
       pannerNode.pan.value = 0;
     }
 
-    if (analyserNode && isPlaying.value && dataArray && sourceNode) {
+    const hasRealAudioData = Boolean(analyserNode && isPlaying.value && dataArray && sourceNode);
+
+    if (hasRealAudioData) {
       analyserNode.getByteFrequencyData(dataArray);
 
       // Bass Energy (bins 0-5: Kick & 808 Bassline)
@@ -2205,10 +2210,10 @@ function startVisualizerLoop() {
       }
       vocalEnergy.value = Math.min(1, vocalSum / (14 * 170));
     } else if (isPlaying.value) {
-      // Dynamic simulated beat pulses for fallback
-      const t = performance.now() * 0.0035;
-      bassEnergy.value = 0.5 + Math.sin(t * 3.0) * 0.4;
-      vocalEnergy.value = 0.45 + Math.cos(t * 2.2) * 0.35;
+      // Dynamic simulated beat pulses for silky mobile playback
+      const t = performance.now() * 0.003;
+      bassEnergy.value = 0.5 + Math.sin(t * 2.8) * 0.35;
+      vocalEnergy.value = 0.45 + Math.cos(t * 2.0) * 0.3;
     } else {
       bassEnergy.value = Math.max(0, bassEnergy.value * 0.85 - 0.02);
       vocalEnergy.value = Math.max(0, vocalEnergy.value * 0.85);
@@ -2220,56 +2225,75 @@ function startVisualizerLoop() {
     }
 
     const color = visualizerColor.value || '#00e5ff';
-    const numBars = 32;
+    const numBars = NUM_VISUALIZER_BARS;
     const gap = 3;
     const totalBarWidth = (width - (numBars - 1) * gap) / numBars;
     const barWidth = Math.max(2, totalBarWidth);
+    const nowTime = performance.now() * 0.0035;
+
+    // Single shared linear gradient for all bars (0 garbage collection overhead)
+    const mainGrad = ctx.createLinearGradient(0, 0, 0, height);
+    mainGrad.addColorStop(0, color);
+    mainGrad.addColorStop(0.55, getColorWithAlpha(color, 0.65));
+    mainGrad.addColorStop(1, getColorWithAlpha(color, 0.15));
+
+    // Batch all bar paths together for single draw call
+    ctx.beginPath();
+    const highlightTops = [];
 
     for (let i = 0; i < numBars; i++) {
-      let val = 0;
-      if (dataArray && isPlaying.value && sourceNode) {
-        // Logarithmic frequency distribution across 32 bars for punchy visuals
+      let targetVal = 0;
+      if (hasRealAudioData) {
         const logIndex = Math.min(
           dataArray.length - 1,
           Math.floor(Math.pow(i / (numBars - 1), 1.5) * (dataArray.length * 0.85))
         );
         let rawVal = dataArray[logIndex] || 0;
-        // Treble compensation boost
         if (i > 14) {
           rawVal = Math.min(255, rawVal * (1 + (i - 14) * 0.04));
         }
-        val = rawVal;
+        targetVal = rawVal;
       } else if (isPlaying.value) {
-        const t = performance.now() * 0.004;
-        const wave = Math.sin(t * 2.5 + i * 0.38) * 0.45 + Math.cos(t * 4 + i * 0.55) * 0.35 + 0.35;
-        val = Math.max(25, Math.min(255, Math.round(wave * 240)));
+        // Fluid organic multi-harmonic wave curve
+        const wave1 = Math.sin(nowTime * 2.4 + i * 0.32) * 0.38;
+        const wave2 = Math.cos(nowTime * 3.8 + i * 0.48) * 0.28;
+        const wave3 = Math.sin(nowTime * 1.2 + i * 0.15) * 0.18;
+        const centerBell = Math.sin((i / (numBars - 1)) * Math.PI) * 0.25;
+        const combined = Math.max(0.08, Math.min(1.0, 0.35 + wave1 + wave2 + wave3 + centerBell));
+        targetVal = combined * 245;
       }
 
-      const percent = Math.min(1, Math.max(0.04, val / 255));
+      // Smooth temporal interpolation (LERP) for liquid 60FPS fluid motion
+      const lerpSpeed = isPlaying.value ? 0.32 : 0.15;
+      smoothBarValues[i] += (targetVal - smoothBarValues[i]) * lerpSpeed;
+
+      const percent = Math.min(1, Math.max(0.04, smoothBarValues[i] / 255));
       const minHeight = 3;
       const barHeight = Math.max(minHeight, percent * (height - 4));
       const x = i * (barWidth + gap);
       const y = height - barHeight;
-
-      // Glowing bar gradient
-      const grad = ctx.createLinearGradient(0, y, 0, height);
-      grad.addColorStop(0, color);
-      grad.addColorStop(0.55, getColorWithAlpha(color, 0.65));
-      grad.addColorStop(1, getColorWithAlpha(color, 0.15));
-
-      ctx.fillStyle = grad;
-      ctx.beginPath();
       const r = Math.min(barWidth / 2, 2.5);
-      ctx.roundRect(x, y, barWidth, barHeight, [r, r, 0.5, 0.5]);
-      ctx.fill();
 
-      // Glowing highlight top tip
+      ctx.roundRect(x, y, barWidth, barHeight, [r, r, 0.5, 0.5]);
+
       if (barHeight > 5 && isPlaying.value) {
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.roundRect(x + 0.5, y, barWidth - 1, 1.5, [1, 1, 0, 0]);
-        ctx.fill();
+        highlightTops.push({ x: x + 0.5, y, w: barWidth - 1 });
       }
+    }
+
+    // 1 single fill for all 32 bars
+    ctx.fillStyle = mainGrad;
+    ctx.fill();
+
+    // 1 single fill for all glowing top caps
+    if (highlightTops.length > 0) {
+      ctx.beginPath();
+      for (let k = 0; k < highlightTops.length; k++) {
+        const h = highlightTops[k];
+        ctx.roundRect(h.x, h.y, h.w, 1.5, [1, 1, 0, 0]);
+      }
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
     }
 
     animationFrameId = requestAnimationFrame(render);
@@ -2946,6 +2970,8 @@ async function playSong(song, newQueue = null, options = {}) {
   dynamicFetchedLyrics.value = [];
   loadSavedOffsetForSong(song);
 
+  const isCurrentRemix = isSongRemix(song);
+
   if (Array.isArray(newQueue) && newQueue.length > 0) {
     const songId = String(song._id || song.id || '');
     const songTitle = song.title || '';
@@ -2953,10 +2979,14 @@ async function playSong(song, newQueue = null, options = {}) {
       const sId = String(s._id || s.id || '');
       if (songId && sId && songId === sId) return false;
       if (songTitle && s.title === songTitle) return false;
+      // STRICT GENRE MATCH: If current song is remix, keep ONLY remix tracks in queue. If original, keep ONLY original.
+      const sIsRemix = isSongRemix(s);
+      if (isCurrentRemix ? !sIsRemix : sIsRemix) return false;
       return true;
     });
     songList.value = [song, ...otherTracks];
     currentSongIndex.value = 0;
+    prefetchUpcomingTracks();
   } else if ((options && options.isForYouRadio) || (options && options.isFromSearch)) {
     songList.value = [song];
     currentSongIndex.value = 0;
@@ -2969,6 +2999,7 @@ async function playSong(song, newQueue = null, options = {}) {
       songList.value = [song, ...songList.value];
       currentSongIndex.value = 0;
     }
+    prefetchUpcomingTracks();
   }
 
   if (!song.isOffline) {
@@ -3831,7 +3862,6 @@ defineExpose({
   cursor: pointer;
 }
 
-/* Real-Time Visualizer Canvas Container */
 .visualizer-container {
   width: 100%;
   max-width: 320px;
@@ -3844,7 +3874,11 @@ defineExpose({
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 14px;
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+  transform: translateZ(0);
+  will-change: transform;
+  contain: paint;
   transition: border-color 0.4s ease, box-shadow 0.4s ease;
 }
 
@@ -3852,6 +3886,8 @@ defineExpose({
   width: 100%;
   height: 38px;
   display: block;
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 /* RIGHT PANEL: Synchronized Lyrics & Queue */
