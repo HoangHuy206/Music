@@ -154,10 +154,12 @@
           >
             <div class="user-avatar-circle">
               <img
-                v-if="currentUser.avatar"
-                :src="currentUser.avatar"
+                v-if="currentUser.avatar && !avatarLoadError"
+                :src="formatMediaUrl(currentUser.avatar)"
                 :alt="currentUser.displayName || currentUser.username"
                 class="user-avatar-img"
+                referrerpolicy="no-referrer"
+                @error="avatarLoadError = true"
               />
               <span v-else class="user-avatar-letter">{{ (currentUser.displayName || currentUser.username || 'U')[0].toUpperCase() }}</span>
               <span class="online-status-dot"></span>
@@ -453,7 +455,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted, onUnmounted } from 'vue';
+import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import GlobalToast from './components/GlobalToast.vue';
 import IntroSplash from './components/IntroSplash.vue';
 import HomePage from './components/HomePage.vue';
@@ -464,7 +466,7 @@ import SearchResultsView from './components/SearchResultsView.vue';
 import AuthModal from './components/AuthModal.vue';
 import ShareModal from './components/ShareModal.vue';
 import { showToast } from './utils/toast.js';
-import { currentUser, logout, getAuthHeaders } from './utils/auth.js';
+import { currentUser, logout, getAuthHeaders, fetchUserProfile } from './utils/auth.js';
 import { API_BASE_URL } from './config/api.js';
 
 const showIntroSplash = ref(true);
@@ -548,7 +550,17 @@ function handleGlobalKeydown(e) {
 
 async function fetchUserFavorites() {
   if (!currentUser.value) {
-    favoriteSongIds.value = new Set();
+    try {
+      const local = localStorage.getItem('auramusic_local_favorites');
+      if (local) {
+        const parsed = JSON.parse(local);
+        favoriteSongIds.value = new Set(parsed.map((s) => String(s._id || s.id)));
+      } else {
+        favoriteSongIds.value = new Set();
+      }
+    } catch {
+      favoriteSongIds.value = new Set();
+    }
     return;
   }
   try {
@@ -557,10 +569,21 @@ async function fetchUserFavorites() {
     });
     const result = await res.json();
     if (result.success && Array.isArray(result.data)) {
-      favoriteSongIds.value = new Set(result.data.map((s) => s._id));
+      const valid = result.data.filter(Boolean);
+      favoriteSongIds.value = new Set(valid.map((s) => String(s._id || s.id)));
+      try {
+        localStorage.setItem('auramusic_local_favorites', JSON.stringify(valid));
+      } catch {}
     }
   } catch {}
 }
+
+const avatarLoadError = ref(false);
+
+watch(currentUser, () => {
+  avatarLoadError.value = false;
+  fetchUserFavorites();
+});
 
 // Theme Mode State (Dark vs Light)
 const isLightMode = ref(false);
@@ -582,8 +605,12 @@ function toggleThemeMode() {
 
 onMounted(() => {
   window.addEventListener('keydown', handleGlobalKeydown);
+  window.addEventListener('auramusic:favorites-updated', fetchUserFavorites);
   setupPWAEvents();
   fetchUserFavorites();
+  if (currentUser.value) {
+    fetchUserProfile();
+  }
   const savedTheme = localStorage.getItem('auramusic_theme');
   if (savedTheme === 'light') {
     isLightMode.value = true;
@@ -638,6 +665,7 @@ async function checkSharedLinkOnMount() {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleGlobalKeydown);
+  window.removeEventListener('auramusic:favorites-updated', fetchUserFavorites);
 });
 
 function formatMediaUrl(url) {
@@ -716,8 +744,13 @@ async function submitFullSearch(queryText) {
   if (!queryText || !queryText.trim()) return;
   const targetQuery = queryText.trim();
   executedSearchQuery.value = targetQuery;
-  searchQuery.value = targetQuery;
+  searchQuery.value = '';
+  searchSuggestions.value = [];
   isDropdownOpen.value = false;
+  isSearchFocused.value = false;
+  if (searchInputRef.value) {
+    searchInputRef.value.blur();
+  }
   isSearching.value = true;
   currentTab.value = 'search';
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -752,7 +785,7 @@ async function handlePlayFromSearchResult(track, queue = null) {
 
   await nextTick();
   if (playerRef.value && typeof playerRef.value.playSong === 'function') {
-    playerRef.value.playSong(track, Array.isArray(queue) && queue.length > 0 ? queue : searchResults.value);
+    playerRef.value.playSong(track, null, { isFromSearch: true });
   }
 }
 
@@ -769,7 +802,7 @@ async function handleOpenPlayerFromSearch(track, queue = null) {
   currentTab.value = 'player';
   await nextTick();
   if (playerRef.value && typeof playerRef.value.playSong === 'function') {
-    playerRef.value.playSong(track, Array.isArray(queue) && queue.length > 0 ? queue : searchResults.value);
+    playerRef.value.playSong(track, null, { isFromSearch: true });
   }
 }
 

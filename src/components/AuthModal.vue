@@ -9,12 +9,15 @@
       </button>
 
       <!-- Modal Header -->
-      <div class="modal-header">
-        <div class="brand-badge">🎵 AuraMusic Auth</div>
-        <h2 class="modal-title">
+      <div class="auth-card-header">
+        <div class="auth-brand-badge">
+          <span class="badge-sparkle">✨</span>
+          <span>AuraMusic Auth</span>
+        </div>
+        <h2 class="auth-card-title">
           {{ activeTab === 'login' ? 'Chào Mừng Trở Lại' : 'Tạo Tài Khoản Mới' }}
         </h2>
-        <p class="modal-subtitle">
+        <p class="auth-card-subtitle">
           {{ activeTab === 'login' ? 'Đăng nhập để quản lý và thưởng thức các bài hát yêu thích của bạn.' : 'Đăng ký để tải lên và lưu trữ các bài hát yêu thích của bạn.' }}
         </p>
       </div>
@@ -173,7 +176,7 @@
               v-model="registerForm.username"
               type="text"
               class="auth-input"
-              placeholder="ví dụ: huyhoang"
+              placeholder="ví dụ: Nguyen Van A"
               minlength="3"
               required
             />
@@ -752,38 +755,58 @@ async function handleRegister() {
   transform: rotate(90deg);
 }
 
-.modal-header {
+.auth-card-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
-  margin-bottom: 1.1rem;
+  margin-bottom: 1.25rem;
+  width: 100%;
 }
 
-.brand-badge {
-  display: inline-block;
+.auth-brand-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(0, 242, 254, 0.1);
+  border: 1px solid rgba(0, 242, 254, 0.25);
+  color: #00f2fe;
   font-size: 0.72rem;
   font-weight: 800;
-  letter-spacing: 0.08em;
-  color: #00f2fe;
-  background: rgba(0, 242, 254, 0.12);
-  border: 1px solid rgba(0, 242, 254, 0.3);
-  padding: 0.2rem 0.65rem;
-  border-radius: 20px;
-  margin-bottom: 0.45rem;
-  box-shadow: 0 0 15px rgba(0, 242, 254, 0.15);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 0.55rem;
+  box-shadow: 0 0 16px rgba(0, 242, 254, 0.15);
 }
 
-.modal-title {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: 1.45rem;
+.badge-sparkle {
+  font-size: 0.85rem;
+}
+
+.auth-card-title {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Outfit', sans-serif;
+  font-size: 1.55rem;
   font-weight: 800;
-  margin: 0 0 0.3rem 0;
+  margin: 0 0 0.4rem 0;
   letter-spacing: -0.02em;
+  line-height: 1.25;
+  background: linear-gradient(135deg, #ffffff 30%, #a5f3fc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-align: center;
+  width: 100%;
 }
 
-.modal-subtitle {
-  font-size: 0.82rem;
+.auth-card-subtitle {
+  font-size: 0.84rem;
   color: #94a3b8;
-  margin: 0;
-  line-height: 1.45;
+  margin: 0 auto;
+  line-height: 1.48;
+  max-width: 360px;
+  text-align: center;
+  font-weight: 400;
 }
 
 /* Tabs */
@@ -1203,5 +1226,155 @@ async function handleRegister() {
 @keyframes pulseText {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.65; }
+}
+
+@media (max-width: 640px) {
+  .auth-modal-backdrop {
+    padding: 0.75rem 0.5rem;
+    align-items: center;
+  }
+
+  .auth-modal-card {
+    padding: 1.25rem 1rem;
+    border-radius: 20px;
+    max-height: 94vh;
+  }
+
+  .modal-close-btn {
+    top: 0.75rem;
+    right: 0.75rem;
+    width: 28px;
+    height: 28px;
+  }
+
+  .auth-card-header {
+    margin-bottom: 0.95rem;
+  }
+
+  .auth-brand-badge {
+    font-size: 0.65rem;
+    padding: 0.2rem 0.65rem;
+    margin-bottom: 0.4rem;
+  }
+
+  .auth-card-title {
+    font-size: 1.3rem;
+    line-height: 1.25;
+  }
+
+  .auth-card-subtitle {
+    font-size: 0.76rem;
+    line-height: 1.4;
+  }
+
+  .auth-tab-bar {
+    margin-bottom: 0.75rem;
+    padding: 0.22rem;
+  }
+
+  .auth-tab-btn {
+    padding: 0.4rem 0.2rem;
+    font-size: 0.82rem;
+  }
+
+  .google-auth-btn {
+    padding: 0.6rem 0.75rem;
+    font-size: 0.84rem;
+    gap: 0.5rem;
+  }
+
+  .google-svg-logo {
+    width: 18px;
+    height: 18px;
+  }
+
+  .auth-divider {
+    margin: 0.65rem 0 0.8rem;
+  }
+
+  .divider-text {
+    font-size: 0.62rem;
+  }
+
+  .auth-form {
+    gap: 0.65rem;
+  }
+
+  .form-group {
+    gap: 0.25rem;
+  }
+
+  .form-label {
+    font-size: 0.74rem;
+  }
+
+  .auth-input {
+    padding: 0.58rem 0.75rem 0.58rem 2.3rem;
+    font-size: 0.84rem;
+    border-radius: 10px;
+  }
+
+  .input-icon {
+    left: 0.7rem;
+    width: 16px;
+    height: 16px;
+  }
+
+  .cloudflare-turnstile-box {
+    padding: 0.65rem 0.75rem;
+    border-radius: 12px;
+  }
+
+  .cf-box-left {
+    gap: 0.55rem;
+  }
+
+  .cf-checkbox {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+  }
+
+  .cf-spinner {
+    width: 18px;
+    height: 18px;
+  }
+
+  .cf-prompt-text {
+    font-size: 0.76rem;
+  }
+
+  .cf-svg-icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .cf-brand-name {
+    font-size: 0.56rem;
+  }
+
+  .cf-brand-sub {
+    font-size: 0.48rem;
+  }
+
+  .submit-auth-btn {
+    padding: 0.72rem;
+    font-size: 0.9rem;
+    border-radius: 10px;
+  }
+}
+
+@media (max-width: 380px) {
+  .auth-modal-card {
+    padding: 1.1rem 0.8rem;
+  }
+
+  .modal-title {
+    font-size: 1.12rem;
+  }
+
+  .cf-brand-text {
+    display: none;
+  }
 }
 </style>

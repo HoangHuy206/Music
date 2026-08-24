@@ -203,24 +203,28 @@ function formatFreq(freq) {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: rgba(4, 6, 12, 0.82);
+  background: rgba(4, 6, 12, 0.85);
   backdrop-filter: blur(16px);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1.5rem;
+  padding: 1rem;
+  box-sizing: border-box;
 }
 
 .eq-modal-card {
   position: relative;
-  background: linear-gradient(145deg, rgba(16, 20, 32, 0.95) 0%, rgba(10, 12, 20, 0.98) 100%);
+  background: linear-gradient(145deg, rgba(16, 20, 32, 0.96) 0%, rgba(10, 12, 20, 0.98) 100%);
   border: 1px solid rgba(0, 242, 254, 0.3);
   border-radius: 24px;
   width: 100%;
-  max-width: 660px;
-  padding: 2rem 2.2rem;
+  max-width: 640px;
+  max-height: 92vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 1.8rem 2rem;
   box-shadow: 0 25px 70px rgba(0, 0, 0, 0.8), 0 0 45px rgba(0, 242, 254, 0.15);
-  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .eq-ambient-glow {
@@ -239,7 +243,7 @@ function formatFreq(freq) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.2rem;
   position: relative;
   z-index: 1;
 }
@@ -247,22 +251,23 @@ function formatFreq(freq) {
 .eq-title-group {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
+  gap: 0.75rem;
 }
 
 .eq-icon-badge {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.35rem;
+  font-size: 1.25rem;
   border: 1px solid;
+  flex-shrink: 0;
 }
 
 .eq-main-title {
-  font-size: 1.25rem;
+  font-size: 1.18rem;
   font-weight: 800;
   color: #ffffff;
   margin: 0 0 0.15rem 0;
@@ -270,7 +275,7 @@ function formatFreq(freq) {
 }
 
 .eq-sub-title {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: #94a3b8;
   margin: 0;
 }
@@ -279,14 +284,15 @@ function formatFreq(freq) {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: #94a3b8;
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.2s;
+  flex-shrink: 0;
 }
 
 .eq-close-btn:hover {
@@ -296,18 +302,18 @@ function formatFreq(freq) {
 
 /* Presets */
 .eq-presets-section {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.2rem;
   position: relative;
   z-index: 1;
 }
 
 .section-label {
   display: block;
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   color: #64748b;
-  margin-bottom: 0.6rem;
+  margin-bottom: 0.5rem;
 }
 
 .presets-chip-grid {
@@ -319,15 +325,16 @@ function formatFreq(freq) {
 .preset-pill-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.35rem 0.75rem;
+  gap: 0.35rem;
+  padding: 0.32rem 0.7rem;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
   color: #94a3b8;
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 600;
   cursor: pointer;
+  white-space: nowrap;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -345,24 +352,26 @@ function formatFreq(freq) {
   background: rgba(8, 10, 16, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 18px;
-  padding: 1.25rem 1rem 1rem;
-  margin-bottom: 1.5rem;
+  padding: 1rem 0.75rem 0.85rem;
+  margin-bottom: 1.2rem;
   position: relative;
   z-index: 1;
   display: flex;
-  gap: 0.5rem;
+  gap: 0.35rem;
+  box-sizing: border-box;
 }
 
 .sliders-scale-axis {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   color: #475569;
   font-weight: 700;
-  padding-bottom: 1.4rem;
-  width: 36px;
+  padding-bottom: 1.3rem;
+  width: 32px;
   text-align: right;
+  flex-shrink: 0;
 }
 
 .sliders-container {
@@ -370,44 +379,54 @@ function formatFreq(freq) {
   flex: 1;
   justify-content: space-between;
   align-items: stretch;
+  gap: 2px;
+  overflow: hidden;
 }
 
 .slider-column {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.3rem;
   flex: 1;
+  min-width: 0;
 }
 
 .slider-gain-val {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   font-weight: 800;
   font-family: monospace;
   height: 14px;
+  line-height: 14px;
 }
 
 .fader-track-wrap {
-  height: 120px;
+  height: 110px;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
+  width: 100%;
 }
 
 .eq-vertical-fader {
   appearance: slider-vertical;
   -webkit-appearance: slider-vertical;
   width: 14px;
-  height: 110px;
+  height: 100px;
   cursor: pointer;
 }
 
 .slider-freq-label {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 700;
   color: #94a3b8;
   letter-spacing: -0.02em;
+  white-space: nowrap;
+  text-align: center;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: clip;
 }
 
 /* 8D Spatial Audio Section */
@@ -415,15 +434,16 @@ function formatFreq(freq) {
   background: rgba(14, 18, 28, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
-  padding: 1.1rem 1.3rem;
+  padding: 1rem 1.1rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1.5rem;
-  margin-bottom: 1.5rem;
+  gap: 1rem;
+  margin-bottom: 1.2rem;
   transition: all 0.3s ease;
   position: relative;
   z-index: 1;
+  box-sizing: border-box;
 }
 
 .spatial-8d-section.is-active {
@@ -433,15 +453,16 @@ function formatFreq(freq) {
 
 .spatial-left {
   flex: 1;
+  min-width: 0;
 }
 
 .spatial-badge {
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 800;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   margin-bottom: 0.25rem;
 }
 
@@ -449,6 +470,7 @@ function formatFreq(freq) {
   width: 7px;
   height: 7px;
   border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .spatial-pulse-dot.pulsing {
@@ -456,27 +478,30 @@ function formatFreq(freq) {
 }
 
 .spatial-desc {
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   color: #64748b;
   margin: 0;
-  line-height: 1.4;
+  line-height: 1.35;
 }
 
 .spatial-controls {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.6rem;
+  flex-shrink: 0;
 }
 
 .spatial-speed-ctrl {
   display: flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.25rem;
+  white-space: nowrap;
 }
 
 .speed-lbl {
   font-size: 0.7rem;
   color: #64748b;
+  white-space: nowrap;
 }
 
 .speed-chip-btn {
@@ -488,20 +513,23 @@ function formatFreq(freq) {
   font-size: 0.72rem;
   font-weight: 700;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .spatial-toggle-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.45rem 1.05rem;
+  gap: 0.45rem;
+  padding: 0.45rem 1rem;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.2);
   color: #f1f5f9;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 800;
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -531,20 +559,22 @@ function formatFreq(freq) {
   justify-content: space-between;
   position: relative;
   z-index: 1;
+  gap: 0.6rem;
 }
 
 .eq-reset-btn {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  padding: 0.55rem 0.95rem;
+  padding: 0.55rem 0.9rem;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: #94a3b8;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
+  white-space: nowrap;
   transition: all 0.2s;
 }
 
@@ -554,13 +584,14 @@ function formatFreq(freq) {
 }
 
 .eq-done-btn {
-  padding: 0.65rem 1.5rem;
+  padding: 0.6rem 1.4rem;
   border-radius: 12px;
   color: #08090d;
-  font-size: 0.88rem;
+  font-size: 0.84rem;
   font-weight: 800;
   border: none;
   cursor: pointer;
+  white-space: nowrap;
   transition: all 0.2s ease;
   box-shadow: 0 4px 15px rgba(0, 242, 254, 0.3);
 }
@@ -584,17 +615,110 @@ function formatFreq(freq) {
   50% { transform: scale(1.4); opacity: 1; }
 }
 
-@media (max-width: 600px) {
+/* Mobile & Small Screens (<= 640px) */
+@media (max-width: 640px) {
+  .eq-modal-overlay {
+    padding: 0.6rem;
+  }
   .eq-modal-card {
-    padding: 1.5rem;
+    padding: 1.1rem 0.9rem;
+    border-radius: 20px;
+    max-height: 94vh;
+  }
+  .eq-header {
+    margin-bottom: 0.85rem;
+  }
+  .eq-icon-badge {
+    width: 36px;
+    height: 36px;
+    font-size: 1.1rem;
+    border-radius: 10px;
+  }
+  .eq-main-title {
+    font-size: 1.02rem;
+  }
+  .eq-sub-title {
+    font-size: 0.68rem;
+  }
+  .eq-presets-section {
+    margin-bottom: 0.85rem;
+  }
+  .presets-chip-grid {
+    gap: 0.35rem;
+  }
+  .preset-pill-btn {
+    padding: 0.26rem 0.55rem;
+    font-size: 0.72rem;
+  }
+  .eq-sliders-section {
+    padding: 0.75rem 0.35rem 0.55rem;
+    gap: 0.15rem;
+    margin-bottom: 0.85rem;
+    border-radius: 14px;
+  }
+  .sliders-scale-axis {
+    width: 25px;
+    font-size: 0.56rem;
+    padding-bottom: 1rem;
+  }
+  .slider-gain-val {
+    font-size: 0.56rem;
+    height: 12px;
+    line-height: 12px;
+  }
+  .fader-track-wrap {
+    height: 80px;
+  }
+  .eq-vertical-fader {
+    height: 72px;
+    width: 10px;
+  }
+  .slider-freq-label {
+    font-size: 0.56rem;
+    letter-spacing: -0.04em;
   }
   .spatial-8d-section {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
+    gap: 0.65rem;
+    padding: 0.8rem 0.85rem;
+    margin-bottom: 0.85rem;
+    border-radius: 14px;
+  }
+  .spatial-badge {
+    font-size: 0.68rem;
+  }
+  .spatial-desc {
+    font-size: 0.72rem;
   }
   .spatial-controls {
     width: 100%;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+  .spatial-speed-ctrl {
+    gap: 0.2rem;
+  }
+  .speed-chip-btn {
+    padding: 0.18rem 0.38rem;
+    font-size: 0.68rem;
+  }
+  .spatial-toggle-btn {
+    padding: 0.36rem 0.8rem;
+    font-size: 0.72rem;
+    margin-left: auto;
+  }
+  .eq-footer {
+    gap: 0.45rem;
+  }
+  .eq-reset-btn {
+    padding: 0.45rem 0.65rem;
+    font-size: 0.7rem;
+  }
+  .eq-done-btn {
+    padding: 0.48rem 1rem;
+    font-size: 0.76rem;
   }
 }
 </style>

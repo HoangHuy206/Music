@@ -66,10 +66,11 @@
           <div class="avatar-container" @click="triggerHeaderAvatarPick">
             <div class="avatar-frame">
               <img
-                v-if="avatarPreviewUrl || profileForm.avatar || currentUser.avatar"
-                :src="avatarPreviewUrl || profileForm.avatar || currentUser.avatar"
+                v-if="!avatarLoadFailed && (avatarPreviewUrl || profileForm.avatar || currentUser.avatar)"
+                :src="formatMediaUrl(avatarPreviewUrl || profileForm.avatar || currentUser.avatar)"
                 :alt="currentUser.displayName || currentUser.username"
                 class="avatar-image"
+                referrerpolicy="no-referrer"
                 @error="handleAvatarError"
               />
               <div v-else class="avatar-fallback">
@@ -496,9 +497,10 @@
 
                   <div class="avatar-preview-box">
                     <img
-                      :src="avatarPreviewUrl || profileForm.avatar || currentUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80'"
+                      :src="formatMediaUrl(avatarPreviewUrl || profileForm.avatar || currentUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80')"
                       alt="Avatar Preview"
                       class="avatar-uploader-img"
+                      referrerpolicy="no-referrer"
                     />
                     <div class="avatar-upload-hover-overlay">
                       <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
@@ -719,6 +721,7 @@ function syncFormWithUser() {
 
 watch(currentUser, () => {
   syncFormWithUser();
+  avatarLoadFailed.value = false;
   if (currentUser.value) {
     fetchMySongs();
     fetchFavorites();
@@ -802,8 +805,13 @@ function formatShortDate(dateStr) {
   }
 }
 
+const avatarLoadFailed = ref(false);
+
 function handleAvatarError(e) {
-  e.target.style.display = 'none';
+  avatarLoadFailed.value = true;
+  if (e && e.target) {
+    e.target.style.display = 'none';
+  }
 }
 
 // Trigger Header avatar pick
@@ -853,9 +861,11 @@ function processAvatarFile(file) {
   showToast(`Đã chọn ảnh "${file.name}". Bấm "Lưu Thay Đổi" để cập nhật! ✨`);
 }
 
+
 function clearSelectedAvatarFile() {
   selectedAvatarFile.value = null;
   avatarPreviewUrl.value = '';
+  avatarLoadFailed.value = false;
   if (avatarFileInputRef.value) avatarFileInputRef.value.value = '';
   if (headerAvatarInputRef.value) headerAvatarInputRef.value.value = '';
 }
@@ -881,7 +891,15 @@ async function fetchMySongs() {
 
 // Fetch user's favorite songs
 async function fetchFavorites() {
-  if (!currentUser.value) return;
+  if (!currentUser.value) {
+    try {
+      const local = localStorage.getItem('auramusic_local_favorites');
+      if (local) {
+        favoriteSongs.value = JSON.parse(local);
+      }
+    } catch {}
+    return;
+  }
   try {
     const res = await fetch(`${API_BASE_URL}/api/auth/favorites`, {
       headers: getAuthHeaders(),
@@ -889,9 +907,18 @@ async function fetchFavorites() {
     const data = await res.json();
     if (data.success && Array.isArray(data.data)) {
       favoriteSongs.value = data.data.filter(Boolean);
+      try {
+        localStorage.setItem('auramusic_local_favorites', JSON.stringify(favoriteSongs.value));
+      } catch {}
     }
   } catch (err) {
     console.error('[Fetch Favorites Error]:', err);
+    try {
+      const local = localStorage.getItem('auramusic_local_favorites');
+      if (local) {
+        favoriteSongs.value = JSON.parse(local);
+      }
+    } catch {}
   }
 }
 
@@ -910,8 +937,22 @@ async function handleRemoveFavorite(songId) {
     });
     const data = await res.json();
     if (data.success) {
-      favoriteSongs.value = favoriteSongs.value.filter((s) => s._id !== songId);
-      showToast('Đã xóa khỏi danh sách yêu thích');
+      if (Array.isArray(data.data)) {
+        favoriteSongs.value = data.data.filter(Boolean);
+      } else {
+        favoriteSongs.value = favoriteSongs.value.filter((s) => s._id !== songId && s.id !== songId);
+      }
+      try {
+        localStorage.setItem('auramusic_local_favorites', JSON.stringify(favoriteSongs.value));
+      } catch {}
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('auramusic:favorites-updated', {
+            detail: { isFavorite: false, songId, data: favoriteSongs.value },
+          })
+        );
+      }
+      showToast('Đã xóa khỏi danh sách yêu thích 💔', 'info');
     }
   } catch (err) {
     console.error('[Remove Favorite Error]:', err);

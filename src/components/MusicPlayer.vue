@@ -69,13 +69,16 @@
               title="Quay lại danh sách kết quả tìm kiếm vừa tra cứu"
               @click="$emit('back-to-search')"
             >
-              <span>🔍 ← Tìm Kiếm</span>
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+                <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+              </svg>
+              <span>Tìm Kiếm</span>
             </button>
             <span class="audio-badge hi-res-badge">
               <span class="badge-dot" :style="{ backgroundColor: visualizerColor }"></span>
-              {{ currentSong ? 'HI-RES AUDIO' : 'STANDBY' }}
+              {{ currentSong ? 'HI-RES' : 'STANDBY' }}
             </span>
-            <span class="audio-badge spec-badge">{{ currentSong ? '320 KBPS • 44.1KHZ' : 'NO TRACK' }}</span>
+            <span class="audio-badge spec-badge">{{ currentSong ? '320 KBPS' : 'NO TRACK' }}</span>
           </div>
 
           <div class="header-tools-group">
@@ -88,7 +91,7 @@
               @click="isEqModalOpen = !isEqModalOpen"
             >
               <span class="eq-mini-icon">🎛️</span>
-              <span>Equalizer & 8D</span>
+              <span>EQ & 8D</span>
               <span v-if="is8DEnabled" class="eq-active-dot" :style="{ backgroundColor: visualizerColor }"></span>
             </button>
 
@@ -100,7 +103,7 @@
               title="Danh Sách Bài Hát, Yêu Thích & Playlists"
               @click="isQueueOpen = !isQueueOpen"
             >
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
                 <path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/>
               </svg>
               <span>Danh Sách ({{ songList.length }})</span>
@@ -814,6 +817,7 @@
     <audio
       ref="audioRef"
       :src="audioSourceUrl"
+      crossorigin="anonymous"
       preload="auto"
       @timeupdate="onTimeUpdate"
       @loadedmetadata="onLoadedMetadata"
@@ -2015,7 +2019,6 @@ function playEntirePlaylist(playlist) {
   isPlaying.value = false;
   currentTime.value = 0;
   isQueueOpen.value = false;
-  showRecommendationToast(`Đang phát playlist "${playlist.name}" 🎶`);
   nextTick(() => {
     togglePlay();
   });
@@ -2051,7 +2054,6 @@ const isMobileDevice = typeof navigator !== 'undefined' && (/Android|webOS|iPhon
  * Initialize Web Audio API AudioContext, AnalyserNode, GainNode, 10-Band EQ & StereoPanner
  */
 function setupWebAudio() {
-  if (audioContext && sourceNode) return;
   if (!audioRef.value) return;
 
   try {
@@ -2059,6 +2061,12 @@ function setupWebAudio() {
     if (!audioContext) {
       audioContext = new AudioCtx();
     }
+
+    if (audioContext && audioContext.state === 'suspended') {
+      audioContext.resume().catch(() => {});
+    }
+
+    if (sourceNode) return;
 
     if (!analyserNode) {
       analyserNode = audioContext.createAnalyser();
@@ -2290,16 +2298,69 @@ function onLoadedMetadata() {
 /**
  * Normalizes title for strict deduplication
  */
+/**
+ * Normalizes title for strict deduplication and core phrase matching
+ */
 function getCoreSongTitle(title) {
   if (!title) return '';
   return title
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\b(remix|vinahouse|speed up|sped up|slowed|cover|official|mv|audio|prod|ft\..*|feat\..*)\b/gi, '')
-    .replace(/[()[\]\-–—_.,!]/g, ' ')
+    .replace(/\b(remix|vinahouse|speed up|sped up|slowed|reverb|cover|official|mv|audio|prod|prod\..*|ft\b.*|feat\b.*|beat|karaoke|instrumental|hd|lyrics|video|live|version|edit)\b/gi, '')
+    .replace(/[()[\]\-–—_.,!?:/\\|#]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function getCoreSongTokens(title) {
+  if (!title) return [];
+  const clean = getCoreSongTitle(title);
+  return clean.split(' ').filter((w) => w.length >= 2);
+}
+
+/**
+ * Checks if two titles are variations / duplicates of the exact same song
+ */
+function areSongTitlesDuplicate(title1, title2) {
+  if (!title1 || !title2) return false;
+  const core1 = getCoreSongTitle(title1);
+  const core2 = getCoreSongTitle(title2);
+  if (!core1 || !core2) return false;
+  if (core1 === core2) return true;
+  if (core1.includes(core2) || core2.includes(core1)) return true;
+
+  const tokens1 = getCoreSongTokens(title1);
+  const tokens2 = getCoreSongTokens(title2);
+  if (tokens1.length >= 2 && tokens2.length >= 2) {
+    const common = tokens1.filter((t) => tokens2.includes(t));
+    if (common.length >= 2 && (common.length >= tokens1.length * 0.5 || common.length >= tokens2.length * 0.5)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Checks if candidate song is a duplicate of current song or previously played history
+ */
+function isCandidateDuplicate(candidate, current = null) {
+  if (!candidate || isJunkOrPlaceholderSong(candidate)) return true;
+  const candId = String(candidate._id || candidate.id || '');
+  const curId = String(current?._id || current?.id || '');
+  if (candId && curId && candId === curId) return true;
+  if (candId && playedSongIds.value.has(candId)) return true;
+
+  const candTitle = candidate.title || '';
+  const curTitle = current?.title || '';
+
+  if (curTitle && areSongTitlesDuplicate(candTitle, curTitle)) return true;
+
+  if (playedHistory.value.some((h) => areSongTitlesDuplicate(candTitle, h))) {
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -2331,7 +2392,6 @@ async function getNextSmartGenreSong() {
   const current = currentSong.value;
   if (!current) return null;
 
-  const currentCoreTitle = getCoreSongTitle(current.title);
   const currentIsRemix = isSongRemix(current);
 
   // 1. Try fresh candidates in pre-fetched cloudDiscoveredTracks (100% SoundCloud)
@@ -2339,18 +2399,7 @@ async function getNextSmartGenreSong() {
 
   const filterValidCandidates = (list) => {
     return list.filter((c) => {
-      if (!c || isJunkOrPlaceholderSong(c)) return false;
-      if (c._id && playedSongIds.value.has(String(c._id))) return false;
-      const cCoreTitle = getCoreSongTitle(c.title);
-      if (
-        !cCoreTitle ||
-        cCoreTitle === currentCoreTitle ||
-        cCoreTitle.includes(currentCoreTitle) ||
-        currentCoreTitle.includes(cCoreTitle) ||
-        playedHistory.value.some((h) => h === cCoreTitle || (h.length >= 4 && (cCoreTitle.includes(h) || h.includes(cCoreTitle))))
-      ) {
-        return false;
-      }
+      if (isCandidateDuplicate(c, current)) return false;
       const cIsRemix = isSongRemix(c);
       return currentIsRemix ? cIsRemix : !cIsRemix;
     });
@@ -2378,18 +2427,7 @@ async function getNextSmartGenreSong() {
 
   // 3. Fallback: Search local songList for non-duplicate same-genre song
   const validLocalSameGenre = songList.value.filter((s, idx) => {
-    if (idx === currentSongIndex.value || isJunkOrPlaceholderSong(s)) return false;
-    if (s._id && playedSongIds.value.has(String(s._id))) return false;
-    const sCoreTitle = getCoreSongTitle(s.title);
-    if (
-      !sCoreTitle ||
-      sCoreTitle === currentCoreTitle ||
-      sCoreTitle.includes(currentCoreTitle) ||
-      currentCoreTitle.includes(sCoreTitle) ||
-      playedHistory.value.some((h) => h === sCoreTitle || (h.length >= 4 && (sCoreTitle.includes(h) || h.includes(sCoreTitle))))
-    ) {
-      return false;
-    }
+    if (idx === currentSongIndex.value || isCandidateDuplicate(s, current)) return false;
     const sIsRemix = isSongRemix(s);
     return currentIsRemix ? sIsRemix : !sIsRemix;
   });
@@ -2459,11 +2497,7 @@ async function onTrackEnded() {
   let nextIdx = -1;
   for (let i = currentSongIndex.value + 1; i < songList.value.length; i++) {
     const candidate = songList.value[i];
-    if (!candidate || isJunkOrPlaceholderSong(candidate)) continue;
-    const candId = String(candidate._id || candidate.id || '');
-    const candCore = getCoreSongTitle(candidate.title);
-
-    if (candCore === curCore || (candId && curId && candId === curId)) {
+    if (isCandidateDuplicate(candidate, currentSong.value)) {
       continue;
     }
     nextIdx = i;
@@ -2598,12 +2632,7 @@ async function switchSong(direction) {
     let nextIdx = -1;
     for (let i = currentSongIndex.value + 1; i < songList.value.length; i++) {
       const candidate = songList.value[i];
-      if (!candidate || isJunkOrPlaceholderSong(candidate)) continue;
-      const candId = String(candidate._id || candidate.id || '');
-      const candCore = getCoreSongTitle(candidate.title);
-
-      // Skip duplicate of current song or exact ID match
-      if (candCore === curCore || (candId && curId && candId === curId)) {
+      if (isCandidateDuplicate(candidate, currentSong.value)) {
         continue;
       }
       nextIdx = i;
@@ -2853,16 +2882,17 @@ async function playSong(song, newQueue = null, options = {}) {
   isPlaying.value = false;
   hasRecordedCurrentTrackPlay.value = false;
 
-  if (options && options.isForYouRadio) {
+  if ((options && options.isForYouRadio) || (options && options.isFromSearch)) {
     // 🎧 Dynamic SoundCloud Radio Flow starting from selected track (Zero Repetition)
     songList.value = [song];
     currentSongIndex.value = 0;
-    const { genre } = detectSongGenre(song);
-    showRecommendationToast(`SoundCloud Radio: Đang phát theo gu ${song.genre || genre || 'yêu thích'} ✨`);
+    prefetchUpcomingTracks();
   } else if (Array.isArray(newQueue) && newQueue.length > 0) {
-    songList.value = [...newQueue];
-    let idx = songList.value.findIndex((s) => (s._id && song._id ? s._id === song._id : s.title === song.title));
-    currentSongIndex.value = idx !== -1 ? idx : 0;
+    // Filter out duplicate versions of the chosen song from newQueue so it doesn't play 15 duplicates in a row
+    const distinctQueue = [song, ...newQueue.filter((s) => !isCandidateDuplicate(s, song))];
+    songList.value = distinctQueue;
+    currentSongIndex.value = 0;
+    prefetchUpcomingTracks();
   } else {
     // If not new queue, check if song is in current songList
     let idx = songList.value.findIndex((s) => (s._id && song._id ? s._id === song._id : s.title === song.title));
@@ -3015,7 +3045,7 @@ defineExpose({
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 420px 1fr;
+  grid-template-columns: 460px 1fr;
   width: 96%;
   max-width: 1440px;
   height: 720px;
@@ -3037,10 +3067,13 @@ defineExpose({
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 2.2rem 2.5rem;
+  padding: 1.5rem 1.6rem;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(10, 13, 20, 0.5);
   position: relative;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 /* Cyber Grid Background Overlay */
@@ -3057,63 +3090,117 @@ defineExpose({
   opacity: 0.6;
 }
 
-/* Audio Spec Badges */
+/* Audio Spec Badges & Header Utilities Bar */
 .audio-badges-bar {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  margin-bottom: 1.2rem;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 100%;
+  margin-bottom: 0.75rem;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  box-sizing: border-box;
+}
+
+.badge-group-left {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.header-tools-group {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.top-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  backdrop-filter: blur(10px);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.top-tool-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.top-tool-btn.active {
+  background: rgba(0, 242, 254, 0.15);
+  border-color: #00f2fe;
+  color: #00f2fe;
+  box-shadow: 0 0 12px rgba(0, 242, 254, 0.25);
 }
 
 .back-search-tool-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  background: rgba(0, 242, 254, 0.15);
-  border: 1px solid rgba(0, 242, 254, 0.4);
+  background: rgba(0, 242, 254, 0.12);
+  border: 1px solid rgba(0, 242, 254, 0.35);
   color: #00f2fe;
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 2px 10px rgba(0, 242, 254, 0.2);
+  letter-spacing: 0.02em;
 }
 
 .back-search-tool-btn:hover {
-  background: rgba(0, 242, 254, 0.3);
+  background: rgba(0, 242, 254, 0.25);
   border-color: #00f2fe;
   color: #ffffff;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(0, 242, 254, 0.4);
+  box-shadow: 0 0 12px rgba(0, 242, 254, 0.35);
 }
 
 .audio-badge {
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   font-weight: 800;
-  letter-spacing: 0.1em;
-  padding: 0.25rem 0.7rem;
-  border-radius: 20px;
-  display: flex;
+  letter-spacing: 0.04em;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.35rem;
   user-select: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 .hi-res-badge {
   background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   color: #f1f5f9;
   backdrop-filter: blur(10px);
 }
 
+.spec-badge {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+}
+
 .badge-dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  box-shadow: 0 0 10px currentColor;
+  box-shadow: 0 0 8px currentColor;
 }
 
 .badge-dot.pulse {
@@ -3136,6 +3223,8 @@ defineExpose({
   position: relative;
   width: 260px;
   height: 260px;
+  aspect-ratio: 1 / 1;
+  flex-shrink: 0;
   margin-bottom: 1.4rem;
 }
 
@@ -3143,6 +3232,7 @@ defineExpose({
   position: absolute;
   inset: -10px;
   border-radius: 50%;
+  aspect-ratio: 1 / 1;
   border: 2px solid transparent;
   transition: box-shadow 0.15s ease-out, border-color 0.4s ease, transform 0.15s ease-out;
 }
@@ -3155,6 +3245,8 @@ defineExpose({
   position: relative;
   width: 100%;
   height: 100%;
+  aspect-ratio: 1 / 1;
+  flex-shrink: 0;
   background: radial-gradient(circle, #1c1d25 0%, #0d0e14 55%, #050608 100%);
   border-radius: 50%;
   box-shadow: 
@@ -3299,6 +3391,8 @@ defineExpose({
   position: relative;
   width: 115px;
   height: 115px;
+  aspect-ratio: 1 / 1;
+  flex-shrink: 0;
   border-radius: 50%;
   overflow: hidden;
   box-shadow: 0 0 0 5px #08090d, 0 6px 18px rgba(0, 0, 0, 0.8);
@@ -3311,7 +3405,9 @@ defineExpose({
 .cover-art-img {
   width: 100%;
   height: 100%;
+  aspect-ratio: 1 / 1;
   object-fit: cover;
+  border-radius: 50%;
 }
 
 .vinyl-center.is-default-vinyl {
@@ -4162,12 +4258,17 @@ defineExpose({
   }
 
   .vinyl-wrapper {
-    width: 200px;
-    height: 200px;
+    width: 220px;
+    height: 220px;
+    aspect-ratio: 1 / 1;
+    flex-shrink: 0;
   }
 
   .vinyl-center {
-    height: 80px;
+    width: 95px;
+    height: 95px;
+    aspect-ratio: 1 / 1;
+    flex-shrink: 0;
   }
 
   .player-right {
@@ -4183,49 +4284,6 @@ defineExpose({
 /* ==========================================================================
    EQUALIZER & PLAYLISTS & FAVORITES ENHANCED STYLES
    ========================================================================== */
-.audio-badges-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  margin-bottom: 1rem;
-}
-
-.badge-group-left {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.header-tools-group {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.top-tool-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.3rem 0.7rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #94a3b8;
-  font-size: 0.75rem;
-  font-weight: 700;
-  cursor: pointer;
-  backdrop-filter: blur(10px);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  position: relative;
-}
-
-.top-tool-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
-  transform: translateY(-1px);
-}
-
 .eq-active-dot {
   width: 6px;
   height: 6px;
@@ -4963,50 +5021,8 @@ defineExpose({
   }
 }
 
-/* Header Top Utility Buttons (PiP, EQ, Playlist) */
-.header-tools-group {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.top-tool-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.42rem;
-  padding: 0.4rem 0.85rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #cbd5e1;
-  font-size: 0.78rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  position: relative;
-  user-select: none;
-}
-
-.top-tool-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
-  transform: translateY(-1px);
-}
-
-.top-tool-btn.active {
-  background: rgba(0, 242, 254, 0.12);
-  box-shadow: 0 0 15px rgba(0, 242, 254, 0.2);
-}
-
 .pip-mini-icon, .eq-mini-icon {
-  font-size: 0.92rem;
-}
-
-.eq-active-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  box-shadow: 0 0 8px currentColor;
+  font-size: 0.88rem;
 }
 
 .song-offline-btn:hover {

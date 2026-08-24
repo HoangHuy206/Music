@@ -17,7 +17,13 @@
       <div v-if="currentUser" class="user-account-banner">
         <div class="uab-left">
           <div class="uab-avatar">
-            <img v-if="currentUser.avatar" :src="currentUser.avatar" :alt="currentUser.displayName || currentUser.username" class="uab-img" />
+            <img
+              v-if="currentUser.avatar"
+              :src="formatMediaUrl(currentUser.avatar)"
+              :alt="currentUser.displayName || currentUser.username"
+              class="uab-img"
+              referrerpolicy="no-referrer"
+            />
             <span v-else class="uab-initial">{{ (currentUser.displayName || currentUser.username || 'U')[0].toUpperCase() }}</span>
           </div>
           <div class="uab-info">
@@ -257,6 +263,14 @@ import { API_BASE_URL } from '../config/api.js';
 const emit = defineEmits(['songUploaded', 'navigate']);
 
 const API_URL = `${API_BASE_URL}/api/songs`;
+
+function formatMediaUrl(url) {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+}
 
 // Form Fields
 const songTitle = ref('');

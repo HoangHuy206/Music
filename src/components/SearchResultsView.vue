@@ -914,20 +914,123 @@ function handleToggleLike(track) {
 
 @media (max-width: 768px) {
   .search-hero-banner {
-    padding: 1.5rem;
+    padding: 1.2rem 1rem;
+    border-radius: 20px;
+  }
+  .search-hero-title {
+    font-size: 1.25rem;
+  }
+  .search-hero-desc {
+    font-size: 0.8rem;
+  }
+  .search-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+  .btn-play-all-search {
+    width: 100%;
+    justify-content: center;
   }
   .track-card-row {
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 1.2rem;
-  }
-  .track-actions-col {
-    width: 100%;
-    justify-content: flex-end;
+    flex-direction: row;
+    align-items: center;
+    padding: 0.75rem 0.85rem;
+    gap: 0.85rem;
+    border-radius: 16px;
   }
   .track-artwork-box {
-    width: 100%;
-    height: 180px;
+    width: 68px;
+    height: 68px;
+    min-width: 68px;
+    border-radius: 12px;
+  }
+  .play-circle-btn {
+    width: 32px;
+    height: 32px;
+  }
+  .play-circle-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+  .track-content-col {
+    gap: 0.25rem;
+  }
+  .track-main-title {
+    font-size: 0.95rem;
+    margin-bottom: 0.1rem;
+  }
+  .artist-badge-row {
+    gap: 0.35rem;
+  }
+  .artist-name-txt {
+    font-size: 0.76rem;
+  }
+  .genre-tag, .source-tag {
+    font-size: 0.6rem;
+    padding: 0.1rem 0.4rem;
+  }
+  .track-upload-time {
+    display: none;
+  }
+  .track-waveform-bar-wrapper {
+    height: 24px;
+    padding: 0 0.4rem;
+  }
+  .waveform-duration-badge {
+    font-size: 0.62rem;
+    padding: 1px 3px;
+    right: 4px;
+    bottom: 2px;
+  }
+  .track-metrics-bar {
+    gap: 0.5rem;
+  }
+  .metrics-left {
+    gap: 0.6rem;
+  }
+  .metric-item {
+    font-size: 0.68rem;
+  }
+  .track-actions-col {
+    width: auto;
+    gap: 0.35rem;
+    flex-shrink: 0;
+  }
+  .btn-play-now {
+    display: none;
+  }
+  .action-icon-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+  .action-icon-btn svg {
+    width: 15px;
+    height: 15px;
+  }
+}
+
+@media (max-width: 480px) {
+  .track-card-row {
+    padding: 0.65rem 0.75rem;
+    gap: 0.7rem;
+  }
+  .track-artwork-box {
+    width: 60px;
+    height: 60px;
+    min-width: 60px;
+    border-radius: 10px;
+  }
+  .track-main-title {
+    font-size: 0.88rem;
+  }
+  .track-waveform-bar-wrapper {
+    display: none;
+  }
+  .action-icon-btn {
+    width: 32px;
+    height: 32px;
   }
 }
 </style>

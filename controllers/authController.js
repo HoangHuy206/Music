@@ -362,9 +362,10 @@ export async function getMySongs(req, res) {
 export async function getFavorites(req, res) {
   try {
     const user = await User.findById(req.user._id).populate('favoriteSongs');
+    const validFavorites = (user?.favoriteSongs || []).filter(Boolean);
     return res.status(200).json({
       success: true,
-      data: user.favoriteSongs || [],
+      data: validFavorites,
     });
   } catch (err) {
     console.error('[GetFavorites Error]:', err);
@@ -383,7 +384,7 @@ export async function getFavorites(req, res) {
 export async function toggleFavorite(req, res) {
   try {
     const { songId } = req.params;
-    const { title, artist, coverImage, audioUrl, duration, genre, isRemix } = req.body || {};
+    let { title, artist, coverImage, audioUrl, sourceUrl, duration, genre, isRemix } = req.body || {};
     const user = await User.findById(req.user._id);
 
     if (!user) {
@@ -396,7 +397,7 @@ export async function toggleFavorite(req, res) {
 
     // 1. Try finding song by valid MongoDB ObjectId
     let resolvedSongDoc = null;
-    if (mongoose.Types.ObjectId.isValid(songId)) {
+    if (songId && mongoose.Types.ObjectId.isValid(songId)) {
       resolvedSongDoc = await Song.findById(songId);
     }
 
@@ -407,14 +408,19 @@ export async function toggleFavorite(req, res) {
       resolvedSongDoc = await Song.findOne({ title: { $regex: regexPattern, $options: 'i' } });
     }
 
-    // 3. If still not in database and song metadata exists, create the Song record
-    if (!resolvedSongDoc && (title || coverImage || audioUrl)) {
+    // 3. If still not in database, create the Song record with safe fallback audioUrl
+    if (!resolvedSongDoc) {
+      const safeAudioUrl =
+        audioUrl ||
+        sourceUrl ||
+        (songId && !songId.startsWith('temp') ? `/api/songs/stream/${songId}` : `https://api.soundcloud.com/tracks/mock/stream_${Date.now()}`);
       resolvedSongDoc = await Song.create({
         title: title || 'Bài Hát Yêu Thích',
         artist: artist || 'Nghệ Sĩ',
         coverImage: coverImage || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600',
-        audioUrl: audioUrl || '',
-        duration: duration || 200,
+        audioUrl: safeAudioUrl,
+        sourceUrl: sourceUrl || (songId && songId.startsWith('cloud_') ? `https://soundcloud.com/track/${songId}` : null),
+        duration: Number(duration) || 200,
         genre: genre || 'Nhạc Trẻ / Pop (Bản Gốc)',
         isRemix: !!isRemix,
         userId: req.user._id,
@@ -442,12 +448,14 @@ export async function toggleFavorite(req, res) {
     await user.save();
     await user.populate('favoriteSongs');
 
+    const validFavorites = (user.favoriteSongs || []).filter(Boolean);
+
     return res.status(200).json({
       success: true,
       isFavorite,
       songId: String(resolvedId),
       message: isFavorite ? 'Đã thêm vào danh sách Yêu Thích ❤️' : 'Đã xóa khỏi danh sách Yêu Thích 💔',
-      data: user.favoriteSongs,
+      data: validFavorites,
     });
   } catch (err) {
     console.error('[ToggleFavorite Error]:', err);
@@ -641,9 +649,9 @@ export async function deletePlaylist(req, res) {
  */
 function optimizeGoogleAvatarUrl(url) {
   if (!url || typeof url !== 'string') return '';
-  // Google avatar URLs often end with =s96-c, replace with =s0 to preserve full animated GIF / original quality
+  // Google avatar URLs end with =s96-c, replace with =s256 to preserve animated GIF & high quality without 429 rate limit
   if (url.includes('googleusercontent.com')) {
-    return url.replace(/=s\d+(-c)?$/, '=s0');
+    return url.replace(/=s\d+(-c)?$/, '=s256');
   }
   return url;
 }
@@ -1027,7 +1035,7 @@ async function getDailySoundCloudTracks(genre, dateKey) {
       'acoustic ballad viet nam nhe nhang',
     ],
     'Chill / Lofi (Bản Gốc)': [
-      'nhac chill lofi viet nam suy tam trang',
+      'nhac chill lofi viet nam',
     ],
     'Rap / Hiphop (Bản Gốc)': [
       'rap viet underground flow hay nhat',
@@ -1044,7 +1052,12 @@ async function getDailySoundCloudTracks(genre, dateKey) {
         params: { q, client_id: scClientId, limit: 10 },
         timeout: 4000,
       });
-      const items = res.data?.collection || [];
+      const SPAM_TITLES_REGEX = /tổng hợp trend|tong hop trend|goddartlct|nonstop|nhạc chế|tập hợp|full album|1 tiếng|1 hour|hot trend tik tok|trend tiktok|nhac tre remix/i;
+      const items = (res.data?.collection || []).filter((item) => {
+        if (!item || !item.title) return false;
+        if (SPAM_TITLES_REGEX.test(item.title) || SPAM_TITLES_REGEX.test(item.user?.username || '')) return false;
+        return true;
+      });
 
       // Resolve real playable direct stream URLs in parallel
       const streamPromises = items.map(async (item) => {
@@ -1095,40 +1108,41 @@ async function getDailySoundCloudTracks(genre, dateKey) {
 }
 
 /**
- * @desc    Get Personalized Recommendations for User Account
+ * @desc    Get Personalized Song Recommendations for Home Page
  * @route   GET /api/auth/recommendations
- * @access  Public / Optional Auth
+ * @access  Public (Enhanced if authenticated)
  */
 export async function getPersonalizedRecommendations(req, res) {
   try {
-    const userId = req.user?._id;
-    let user = null;
-    if (userId) {
-      user = await User.findById(userId).populate('favoriteSongs').populate('customPlaylists.songs');
+    const user = req.user;
+    const allSongs = await Song.find().populate('userId', 'username displayName avatar');
+    const validCatalog = allSongs.filter(
+      (s) => s.audioUrl && (s.audioUrl.startsWith('http') || s.audioUrl.startsWith('/uploads') || s.audioUrl.startsWith('blob:'))
+    );
+
+    const listenHistory = (user && Array.isArray(user.listenHistory)) ? user.listenHistory : [];
+    const hasListeningHistory = listenHistory.length >= 2;
+
+    // Calculate genre affinities and play weights
+    const genreScoresMap = {};
+    const artistScoresMap = {};
+    let totalScoreWeight = 0;
+
+    for (const item of listenHistory) {
+      const playCount = Number(item.playCount) || 1;
+      const weight = Math.min(playCount, 15);
+      if (item.genre) {
+        genreScoresMap[item.genre] = (genreScoresMap[item.genre] || 0) + weight;
+        totalScoreWeight += weight;
+      }
+      if (item.artist) {
+        artistScoresMap[item.artist] = (artistScoresMap[item.artist] || 0) + weight;
+      }
     }
 
-    // Fetch all catalog songs
-    const allCatalogSongs = await Song.find().sort({ createdAt: -1 }).limit(100);
-
-    // Filter out invalid/placeholder test uploads
-    const validCatalog = allCatalogSongs.filter((s) => {
-      const t = (s.title || '').trim().toLowerCase();
-      if (!t || t.length < 2 || t === 'unknown' || t === 'untitled' || /^download([-_ (0-9)]*)$/i.test(t)) {
-        return false;
-      }
-      return true;
-    });
-
-    const genreScoresMap = user?.tasteProfile?.genreScores ? Object.fromEntries(user.tasteProfile.genreScores) : {};
-    const favoriteArtistsMap = user?.tasteProfile?.favoriteArtists ? Object.fromEntries(user.tasteProfile.favoriteArtists) : {};
-    const listenHistory = user?.listenHistory || [];
-    const favoriteSongs = user?.favoriteSongs || [];
-    const favoriteSongIds = new Set(favoriteSongs.map((s) => String(s._id)));
-    const totalListens = user?.tasteProfile?.totalListens || listenHistory.length || 0;
-    const hasListeningHistory = !!(user && listenHistory.length > 0 && totalListens > 0);
-
-    // 24-Hour Daily Refresh Cycle Key
-    const todayStr = new Date().toISOString().slice(0, 10); // e.g. "2026-08-23"
+    // Daily Deterministic Salt (YYYY-MM-DD) for smooth 24h consistency
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const userDailySeed = Math.abs(
       (todayStr + String(user?._id || 'guest')).split('').reduce((acc, c) => ((acc << 5) - acc) + c.charCodeAt(0), 0)
     );
@@ -1147,7 +1161,6 @@ export async function getPersonalizedRecommendations(req, res) {
     }
 
     // NEW USER / NO LISTENING HISTORY:
-    // 24-Hour Rotating starter discovery tracks across ALL genres + SoundCloud Daily Tracks
     if (!hasListeningHistory) {
       const genresList = [
         'Nhạc Trẻ / Pop (Bản Gốc)',
@@ -1159,7 +1172,6 @@ export async function getPersonalizedRecommendations(req, res) {
       let diverseStarterTracks = [];
       for (const g of genresList) {
         const gSongs = validCatalog.filter((s) => s.genre === g);
-        // Deterministic daily rotation for this 24h window
         const dailyOffset = userDailySeed % Math.max(1, gSongs.length);
         const rotatedGroup = [...gSongs.slice(dailyOffset), ...gSongs.slice(0, dailyOffset)];
         diverseStarterTracks.push(...rotatedGroup.slice(0, 3));
@@ -1170,10 +1182,16 @@ export async function getPersonalizedRecommendations(req, res) {
         }
       }
 
-      // Merge fresh SoundCloud daily discoveries
+      // Append fresh SoundCloud daily discoveries at the end
       if (dailyCloudTracks.length > 0) {
-        diverseStarterTracks.unshift(...dailyCloudTracks.slice(0, 4));
+        diverseStarterTracks.push(...dailyCloudTracks.slice(0, 4));
       }
+
+      // Filter out any unwanted spam compilation tracks
+      const SPAM_FILTER = /tổng hợp trend|tong hop trend|goddartlct|nonstop/i;
+      diverseStarterTracks = diverseStarterTracks.filter(
+        (t) => !SPAM_FILTER.test(t.title) && !SPAM_FILTER.test(t.artist)
+      );
 
       return res.status(200).json({
         success: true,
