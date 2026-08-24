@@ -9,6 +9,7 @@ import {
   getSongLyrics,
   updateSongLyrics,
   deleteSong,
+  proxyAudioStream,
 } from '../controllers/songController.js';
 import { uploadSongMedia } from '../middlewares/upload.js';
 import { optionalAuth, protect } from '../middlewares/auth.js';
@@ -16,6 +17,7 @@ import { optionalAuth, protect } from '../middlewares/auth.js';
 const router = express.Router();
 
 // Public helper routes - Must be defined BEFORE /:id
+router.get('/proxy-stream', proxyAudioStream);
 router.get('/search', searchSongs);
 router.get('/suggestions', getSearchSuggestions);
 router.get('/related', getRelatedSongs);

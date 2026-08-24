@@ -1095,13 +1095,13 @@ function handlePlayTrack(track, queue = null) {
 
 // Play track from "Dành Riêng Cho..." section in dynamic SoundCloud radio flow
 function handlePlayForYouTrack(track) {
-  emit('play-song', track, null, { isForYouRadio: true });
+  emit('play-song', track, displayForYouTracks.value, { isForYouRadio: true });
 }
 
 // Play all tracks from For You in dynamic SoundCloud radio flow
 function handlePlayAllForYou() {
   if (displayForYouTracks.value.length > 0) {
-    emit('play-song', displayForYouTracks.value[0], null, { isForYouRadio: true });
+    emit('play-song', displayForYouTracks.value[0], displayForYouTracks.value, { isForYouRadio: true });
   }
 }
 

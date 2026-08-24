@@ -2198,3 +2198,66 @@ export const updateSongLyrics = async (req, res) => {
   }
 };
 
+/**
+ * Proxy external audio streams with full CORS and Range headers
+ * Enables Web Audio API AnalyserNode & Equalizer without browser CORS silence
+ */
+export const proxyAudioStream = async (req, res) => {
+  try {
+    const { url } = req.query;
+    if (!url) {
+      return res.status(400).json({ success: false, message: 'Audio URL is required' });
+    }
+
+    const decodedUrl = decodeURIComponent(url);
+    if (!decodedUrl.startsWith('http://') && !decodedUrl.startsWith('https://')) {
+      return res.status(400).json({ success: false, message: 'Invalid audio URL' });
+    }
+
+    const range = req.headers.range;
+    const axiosHeaders = {};
+    if (range) {
+      axiosHeaders.range = range;
+    }
+
+    const response = await axios({
+      method: 'get',
+      url: decodedUrl,
+      responseType: 'stream',
+      headers: axiosHeaders,
+      timeout: 20000,
+    });
+
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+
+    if (response.headers['content-type']) {
+      res.setHeader('Content-Type', response.headers['content-type']);
+    } else {
+      res.setHeader('Content-Type', 'audio/mpeg');
+    }
+
+    if (response.headers['content-length']) {
+      res.setHeader('Content-Length', response.headers['content-length']);
+    }
+    if (response.headers['accept-ranges']) {
+      res.setHeader('Accept-Ranges', response.headers['accept-ranges']);
+    }
+    if (response.headers['content-range']) {
+      res.setHeader('Content-Range', response.headers['content-range']);
+      res.status(206);
+    } else {
+      res.status(response.status || 200);
+    }
+
+    response.data.pipe(res);
+  } catch (err) {
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, message: 'Stream proxy error: ' + err.message });
+    }
+  }
+};
+
+

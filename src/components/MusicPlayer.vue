@@ -817,6 +817,7 @@
     <audio
       ref="audioRef"
       :src="audioSourceUrl"
+      crossorigin="anonymous"
       preload="auto"
       playsinline
       webkit-playsinline="true"
@@ -1097,13 +1098,30 @@ const hasValidCoverImage = computed(() => {
   const img = currentSong.value?.coverImage;
   return !!(img && typeof img === 'string' && img.trim().length > 0 && !imageErrorOccurred.value);
 });
+/**
+ * Formats audio stream URL with CORS proxy support for external CDN streams
+ */
+function formatAudioUrl(url) {
+  if (!url) return '';
+  if (url.startsWith('blob:') || url.startsWith('data:')) {
+    return url;
+  }
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+  }
+  // If remote external URL (e.g. SoundCloud CDN), proxy through backend with full CORS headers
+  if (!url.startsWith(API_BASE_URL)) {
+    return `${API_BASE_URL}/api/songs/proxy-stream?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+}
 
 const audioSourceUrl = computed(() => {
   if (offlineAudioBlobUrl.value) {
     return offlineAudioBlobUrl.value;
   }
   if (!currentSong.value?.audioUrl) return '';
-  return formatMediaUrl(currentSong.value.audioUrl);
+  return formatAudioUrl(currentSong.value.audioUrl);
 });
 
 const visualizerColor = computed(() => {
@@ -2062,12 +2080,6 @@ const isMobileDevice = typeof navigator !== 'undefined' && (/Android|webOS|iPhon
 function setupWebAudio(force = false) {
   if (!audioRef.value) return;
 
-  // On mobile / iOS, do not attach createMediaElementSource unless user explicitly activates EQ or 8D effect.
-  // This preserves native browser audio permissions so background audio and lock screen play continuously without being killed by iOS power manager!
-  if ((isMobileDevice || isIOS) && !force && !is8DEnabled.value && activeEqPreset.value === 'flat') {
-    return;
-  }
-
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!audioContext) {
@@ -2078,12 +2090,10 @@ function setupWebAudio(force = false) {
       audioContext.resume().catch(() => {});
     }
 
-    if (sourceNode) return;
-
     if (!analyserNode) {
       analyserNode = audioContext.createAnalyser();
-      analyserNode.fftSize = 256; // 128 frequency bins for ultra-responsive beat bouncing
-      analyserNode.smoothingTimeConstant = 0.7;
+      analyserNode.fftSize = 256; // 128 frequency bins
+      analyserNode.smoothingTimeConstant = 0.65; // Snappy beat reaction
       const bufferLength = analyserNode.frequencyBinCount;
       dataArray = new Uint8Array(bufferLength);
     }
@@ -2178,24 +2188,24 @@ function startVisualizerLoop() {
     if (analyserNode && isPlaying.value && dataArray && sourceNode) {
       analyserNode.getByteFrequencyData(dataArray);
 
-      // Bass Energy (bins 0-7: Kick & Bassline)
+      // Bass Energy (bins 0-5: Kick & 808 Bassline)
       let bassSum = 0;
-      for (let i = 0; i < 8; i++) {
+      for (let i = 0; i < 6; i++) {
         bassSum += dataArray[i];
       }
-      bassEnergy.value = Math.min(1, bassSum / (8 * 180));
+      bassEnergy.value = Math.min(1, bassSum / (6 * 150));
 
-      // Vocal / Melodic Energy (bins 8-24)
+      // Vocal / Melodic Energy (bins 6-20)
       let vocalSum = 0;
-      for (let i = 8; i < 24; i++) {
+      for (let i = 6; i < 20; i++) {
         vocalSum += dataArray[i];
       }
-      vocalEnergy.value = Math.min(1, vocalSum / (16 * 200));
+      vocalEnergy.value = Math.min(1, vocalSum / (14 * 170));
     } else if (isPlaying.value) {
-      // Dynamic simulated beat pulses for mobile devices to keep native audio output intact
-      const t = performance.now() * 0.003;
-      bassEnergy.value = 0.45 + Math.sin(t * 2.5) * 0.35;
-      vocalEnergy.value = 0.4 + Math.cos(t * 1.8) * 0.3;
+      // Dynamic simulated beat pulses for fallback
+      const t = performance.now() * 0.0035;
+      bassEnergy.value = 0.5 + Math.sin(t * 3.0) * 0.4;
+      vocalEnergy.value = 0.45 + Math.cos(t * 2.2) * 0.35;
     } else {
       bassEnergy.value = Math.max(0, bassEnergy.value * 0.85 - 0.02);
       vocalEnergy.value = Math.max(0, vocalEnergy.value * 0.85);
@@ -2211,16 +2221,25 @@ function startVisualizerLoop() {
     const gap = 3;
     const totalBarWidth = (width - (numBars - 1) * gap) / numBars;
     const barWidth = Math.max(2, totalBarWidth);
-    const step = dataArray ? Math.max(1, Math.floor((dataArray.length * 0.7) / numBars)) : 1;
 
     for (let i = 0; i < numBars; i++) {
       let val = 0;
       if (dataArray && isPlaying.value && sourceNode) {
-        val = dataArray[i * step] || 0;
+        // Logarithmic frequency distribution across 32 bars for punchy visuals
+        const logIndex = Math.min(
+          dataArray.length - 1,
+          Math.floor(Math.pow(i / (numBars - 1), 1.5) * (dataArray.length * 0.85))
+        );
+        let rawVal = dataArray[logIndex] || 0;
+        // Treble compensation boost
+        if (i > 14) {
+          rawVal = Math.min(255, rawVal * (1 + (i - 14) * 0.04));
+        }
+        val = rawVal;
       } else if (isPlaying.value) {
-        const t = performance.now() * 0.003;
-        const wave = Math.sin(t * 2 + i * 0.35) * 0.4 + Math.cos(t * 3.5 + i * 0.5) * 0.3 + 0.35;
-        val = Math.max(20, Math.min(255, Math.round(wave * 230)));
+        const t = performance.now() * 0.004;
+        const wave = Math.sin(t * 2.5 + i * 0.38) * 0.45 + Math.cos(t * 4 + i * 0.55) * 0.35 + 0.35;
+        val = Math.max(25, Math.min(255, Math.round(wave * 240)));
       }
 
       const percent = Math.min(1, Math.max(0.04, val / 255));
@@ -2232,8 +2251,8 @@ function startVisualizerLoop() {
       // Glowing bar gradient
       const grad = ctx.createLinearGradient(0, y, 0, height);
       grad.addColorStop(0, color);
-      grad.addColorStop(0.6, getColorWithAlpha(color, 0.55));
-      grad.addColorStop(1, getColorWithAlpha(color, 0.1));
+      grad.addColorStop(0.55, getColorWithAlpha(color, 0.65));
+      grad.addColorStop(1, getColorWithAlpha(color, 0.15));
 
       ctx.fillStyle = grad;
       ctx.beginPath();
@@ -2273,6 +2292,10 @@ async function togglePlay() {
         await playPromise;
       }
       isPlaying.value = true;
+      if (audioRef.value) {
+        audioRef.value.muted = false;
+        audioRef.value.volume = volume.value;
+      }
       try {
         setupWebAudio();
         if (audioContext && audioContext.state === 'suspended') {
@@ -2916,20 +2939,26 @@ async function playSong(song, newQueue = null, options = {}) {
   }
   isPlaying.value = false;
   hasRecordedCurrentTrackPlay.value = false;
+  imageErrorOccurred.value = false;
+  dynamicFetchedLyrics.value = [];
+  loadSavedOffsetForSong(song);
 
-  if ((options && options.isForYouRadio) || (options && options.isFromSearch)) {
-    // 🎧 Dynamic SoundCloud Radio Flow starting from selected track (Zero Repetition)
+  if (Array.isArray(newQueue) && newQueue.length > 0) {
+    const songId = String(song._id || song.id || '');
+    const songTitle = song.title || '';
+    const otherTracks = newQueue.filter((s) => {
+      const sId = String(s._id || s.id || '');
+      if (songId && sId && songId === sId) return false;
+      if (songTitle && s.title === songTitle) return false;
+      return true;
+    });
+    songList.value = [song, ...otherTracks];
+    currentSongIndex.value = 0;
+  } else if ((options && options.isForYouRadio) || (options && options.isFromSearch)) {
     songList.value = [song];
     currentSongIndex.value = 0;
     prefetchUpcomingTracks();
-  } else if (Array.isArray(newQueue) && newQueue.length > 0) {
-    // Filter out duplicate versions of the chosen song from newQueue so it doesn't play 15 duplicates in a row
-    const distinctQueue = [song, ...newQueue.filter((s) => !isCandidateDuplicate(s, song))];
-    songList.value = distinctQueue;
-    currentSongIndex.value = 0;
-    prefetchUpcomingTracks();
   } else {
-    // If not new queue, check if song is in current songList
     let idx = songList.value.findIndex((s) => (s._id && song._id ? s._id === song._id : s.title === song.title));
     if (idx !== -1) {
       currentSongIndex.value = idx;
@@ -2946,10 +2975,21 @@ async function playSong(song, newQueue = null, options = {}) {
   recordPlayedTitle(song.title, song._id);
   currentTime.value = 0;
 
+  const targetSrc = (song.isOffline && offlineAudioBlobUrl.value)
+    ? offlineAudioBlobUrl.value
+    : formatAudioUrl(song.audioUrl);
+
   await nextTick();
 
   if (audioRef.value) {
+    if (targetSrc && audioRef.value.src !== targetSrc) {
+      audioRef.value.src = targetSrc;
+    }
+    audioRef.value.currentTime = 0;
     audioRef.value.volume = volume.value;
+    audioRef.value.muted = false;
+    audioRef.value.load();
+
     try {
       const playPromise = audioRef.value.play();
       if (playPromise !== undefined) {
@@ -2970,7 +3010,7 @@ async function playSong(song, newQueue = null, options = {}) {
     }
   }
 
-  // Non-blocking background fetch for lyrics & prefetch upcoming tracks for infinite seamless play
+  updateSystemMediaSession();
   autoFetchLyricsForCurrentSong();
   prefetchUpcomingTracks();
 }
