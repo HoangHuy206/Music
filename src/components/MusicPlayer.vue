@@ -5253,23 +5253,23 @@ defineExpose({
 /* Clickable Vinyl Center with Zoom Badge */
 .vinyl-center.is-clickable-cover {
   cursor: pointer;
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+  transition: box-shadow 0.3s ease, filter 0.3s ease;
 }
 
 .vinyl-center.is-clickable-cover:hover {
-  transform: translate(-50%, -50%) scale(1.08) !important;
-  box-shadow: 0 0 25px rgba(255, 255, 255, 0.4), inset 0 0 15px rgba(0, 0, 0, 0.6) !important;
+  box-shadow: 0 0 0 5px #08090d, 0 0 25px rgba(255, 255, 255, 0.4), inset 0 0 15px rgba(0, 0, 0, 0.6) !important;
+  filter: brightness(1.12);
 }
 
 .vinyl-zoom-badge {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%) scale(0.6);
+  transform: translate(-50%, -50%) scale(0.7);
   width: 38px;
   height: 38px;
-  background: rgba(10, 12, 18, 0.82);
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  background: rgba(10, 12, 18, 0.85);
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
   border-radius: 50%;
   display: flex;
   align-items: center;
