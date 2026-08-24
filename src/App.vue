@@ -126,16 +126,6 @@
 
         <!-- Far Right: User Auth Actions -->
         <div class="header-auth-actions">
-          <!-- PWA Install App Button -->
-          <button
-            class="pwa-install-nav-btn"
-            title="Cài đặt AuraMusic làm ứng dụng Desktop / Mobile (PWA)"
-            @click="handleInstallPWA"
-          >
-            <span class="pwa-icon">📲</span>
-            <span class="pwa-txt">Cài App</span>
-          </button>
-
           <!-- Dark / Light Mode Toggle Button -->
           <button
             class="theme-toggle-btn"
@@ -354,15 +344,6 @@
                 <svg viewBox="0 0 24 24" width="16" height="16" :fill="playerRef.isCurrentSongFavorite ? '#ff007f' : 'currentColor'">
                   <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
                 </svg>
-              </button>
-
-              <!-- Mini Player PiP Button -->
-              <button
-                class="sc-mini-action-btn"
-                title="Mở Mini Player nổi ngoài màn hình (Picture-in-Picture) 📺"
-                @click.stop="playerRef?.handleTogglePiP ? playerRef.handleTogglePiP() : null"
-              >
-                <span style="font-size: 15px;">📺</span>
               </button>
 
               <button

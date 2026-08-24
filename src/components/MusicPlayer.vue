@@ -71,19 +71,6 @@
           </div>
 
           <div class="header-tools-group">
-            <!-- 📺 PiP Floating Mini-Player with Live Lyrics -->
-            <button
-              class="top-tool-btn pip-tool-btn"
-              :class="{ active: isPiPFloating }"
-              :style="isPiPFloating ? { borderColor: visualizerColor, color: visualizerColor } : {}"
-              title="Mở Mini Player nổi ngoài màn hình kèm Lời bài hát trực tiếp (Picture-in-Picture)"
-              @click="handleTogglePiP"
-            >
-              <span class="pip-mini-icon">📺</span>
-              <span>Mini Player</span>
-              <span v-if="isPiPFloating" class="eq-active-dot" :style="{ backgroundColor: visualizerColor }"></span>
-            </button>
-
             <!-- 🎛️ 10-Band EQ & 8D Spatial Audio Modal Toggle -->
             <button
               class="top-tool-btn eq-tool-btn"
@@ -230,6 +217,11 @@
           </div>
         </div>
 
+        <!-- Real-Time Dynamic Audio Frequency Visualizer (Sóng nhạc sống động) -->
+        <div class="visualizer-container" :style="{ borderColor: `${visualizerColor}35` }">
+          <canvas ref="canvasRef" class="visualizer-canvas" width="320" height="38"></canvas>
+        </div>
+
         <!-- Audio Progress Bar -->
         <div class="playback-timeline">
           <span class="time-display">{{ formatTime(currentTime) }}</span>
@@ -356,11 +348,6 @@
               </label>
             </div>
           </div>
-        </div>
-
-        <!-- Real-Time Dynamic Audio Frequency Visualizer -->
-        <div class="visualizer-container" :style="{ borderColor: `${visualizerColor}25` }">
-          <canvas ref="canvasRef" class="visualizer-canvas" width="280" height="36"></canvas>
         </div>
       </section>
 
@@ -3537,17 +3524,18 @@ defineExpose({
 /* Real-Time Visualizer Canvas Container */
 .visualizer-container {
   width: 100%;
-  max-width: 300px;
+  max-width: 320px;
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-top: 0.6rem;
-  padding: 0.4rem 0.6rem;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  margin: 0.45rem auto 0.35rem auto;
+  padding: 0.3rem 0.6rem;
+  background: rgba(11, 14, 22, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 14px;
   backdrop-filter: blur(12px);
-  transition: border-color 0.4s ease;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+  transition: border-color 0.4s ease, box-shadow 0.4s ease;
 }
 
 .visualizer-canvas {
