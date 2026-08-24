@@ -1,0 +1,24 @@
+{
+  "name": "AuraMusic • Next-Gen AI Audio Player",
+  "short_name": "AuraMusic",
+  "description": "Nền tảng nghe nhạc trực tuyến thế hệ mới với âm thanh chất lượng cao, gợi ý SoundCloud AI thông minh, lời bài hát đồng bộ 60FPS và hỗ trợ nghe Offline.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#08090d",
+  "theme_color": "#08090d",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=512&auto=format&fit=crop&q=80",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "categories": ["music", "entertainment", "audio"]
+}

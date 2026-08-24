@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#08090d"/>
+      <stop offset="100%" stop-color="#121622"/>
+    </linearGradient>
+    <linearGradient id="neon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f2fe"/>
+      <stop offset="50%" stop-color="#9d4edd"/>
+      <stop offset="100%" stop-color="#ff2a85"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="url(#bg)" stroke="rgba(255,255,255,0.1)" stroke-width="4"/>
+  <circle cx="256" cy="256" r="180" fill="none" stroke="url(#neon)" stroke-width="6" opacity="0.3" filter="url(#glow)"/>
+  <circle cx="256" cy="256" r="150" fill="none" stroke="url(#neon)" stroke-width="12" filter="url(#glow)"/>
+  <path d="M220 160v150a50 50 0 1 1-30-46V200l120-30v110a50 50 0 1 1-30-46V130l-60 30z" fill="url(#neon)" filter="url(#glow)"/>
+</svg>

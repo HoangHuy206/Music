@@ -1,0 +1,658 @@
+/* ==========================================================================
+   AURAMUSIC COMPREHENSIVE GLOBAL LIGHT THEME ENGINE (HIGH SPECIFICITY)
+   ========================================================================== */
+
+/* 1. Root & Base Body In Light Mode */
+html.theme-light,
+body.theme-light,
+.app-root.theme-light {
+  --bg-dark: #f8fafc;
+  --bg-card: rgba(255, 255, 255, 0.95);
+  --bg-card-hover: #ffffff;
+  --border-glass: rgba(0, 0, 0, 0.08);
+  --border-glass-bright: rgba(0, 0, 0, 0.15);
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+.theme-light body {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+/* 2. Top Header & Navigation */
+.theme-light .app-header {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04) !important;
+}
+
+.theme-light .brand-text {
+  color: #0f172a !important;
+}
+
+.theme-light .brand-version-badge {
+  background: rgba(2, 132, 199, 0.1) !important;
+  color: #0284c7 !important;
+  border-color: rgba(2, 132, 199, 0.25) !important;
+}
+
+.theme-light .theme-toggle-btn {
+  background: rgba(0, 0, 0, 0.05) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  color: #334155 !important;
+}
+
+.theme-light .theme-toggle-btn:hover {
+  background: rgba(0, 0, 0, 0.08) !important;
+  color: #0f172a !important;
+}
+
+.theme-light .search-input-box {
+  background: #ffffff !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03) !important;
+}
+
+.theme-light .search-input-box.is-focused,
+.theme-light .search-input-box:focus-within {
+  background: #ffffff !important;
+  border-color: #0284c7 !important;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15) !important;
+}
+
+.theme-light .search-input-field {
+  color: #0f172a !important;
+}
+
+.theme-light .search-input-field::placeholder {
+  color: #94a3b8 !important;
+}
+
+.theme-light .sc-search-dropdown-card {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12) !important;
+}
+
+.theme-light .sc-suggest-row {
+  color: #1e293b !important;
+}
+
+.theme-light .sc-suggest-row:hover {
+  background: rgba(2, 132, 199, 0.08) !important;
+  color: #0284c7 !important;
+}
+
+.theme-light .sc-search-for-row {
+  border-bottom-color: rgba(0, 0, 0, 0.06) !important;
+  color: #64748b !important;
+}
+
+.theme-light .sc-search-for-txt strong {
+  color: #0f172a !important;
+}
+
+.theme-light .nav-tab-btn {
+  color: #64748b !important;
+}
+
+.theme-light .nav-tab-btn:hover {
+  color: #0f172a !important;
+  background: rgba(0, 0, 0, 0.05) !important;
+}
+
+.theme-light .nav-tab-btn.active {
+  color: #0284c7 !important;
+  background: rgba(2, 132, 199, 0.1) !important;
+}
+
+.theme-light .user-profile-chip {
+  background: #ffffff !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  color: #0f172a !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+}
+
+.theme-light .user-display-name {
+  color: #0f172a !important;
+}
+
+.theme-light .login-nav-btn {
+  color: #475569 !important;
+}
+
+/* 3. HOME PAGE (Resolving Dark Feature Cards in Screenshot 2) */
+.theme-light .home-page-container {
+  color: #0f172a !important;
+}
+
+.theme-light .hero-title {
+  color: #0f172a !important;
+}
+
+.theme-light .hero-subtitle {
+  color: #475569 !important;
+}
+
+.theme-light .cta-secondary-btn {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  color: #0f172a !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04) !important;
+}
+
+.theme-light .cta-secondary-btn svg {
+  color: #ff007f !important;
+}
+
+.theme-light .cta-secondary-btn:hover {
+  background: #f8fafc !important;
+  border-color: #ff007f !important;
+  color: #ff007f !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 25px rgba(255, 0, 127, 0.12) !important;
+}
+
+.theme-light .stat-card {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03) !important;
+}
+
+.theme-light .stat-num {
+  color: #0f172a !important;
+}
+
+.theme-light .stat-label {
+  color: #64748b !important;
+}
+
+.theme-light .showcase-glass-card {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05) !important;
+}
+
+.theme-light .showcase-title {
+  color: #0f172a !important;
+}
+
+.theme-light .showcase-desc {
+  color: #475569 !important;
+}
+
+.theme-light .section-title {
+  color: #0f172a !important;
+}
+
+.theme-light .section-subtitle {
+  color: #64748b !important;
+}
+
+/* 4 Feature Cards (Screenshot 2 Fix) */
+.theme-light .feature-card {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.09) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05) !important;
+}
+
+.theme-light .feature-card:hover {
+  transform: translateY(-6px) !important;
+  border-color: #0284c7 !important;
+  box-shadow: 0 20px 40px rgba(2, 132, 199, 0.12) !important;
+}
+
+.theme-light .feature-title {
+  color: #0f172a !important;
+}
+
+.theme-light .feature-desc {
+  color: #475569 !important;
+}
+
+.theme-light .category-card {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03) !important;
+}
+
+.theme-light .category-card-title {
+  color: #0f172a !important;
+}
+
+.theme-light .category-card-desc {
+  color: #64748b !important;
+}
+
+.theme-light .featured-track-row {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+.theme-light .featured-track-row:hover {
+  background: #f8fafc !important;
+  border-color: #0284c7 !important;
+}
+
+.theme-light .f-title {
+  color: #0f172a !important;
+}
+
+.theme-light .f-artist {
+  color: #64748b !important;
+}
+
+.theme-light .support-form-card {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.05) !important;
+}
+
+.theme-light .form-input-field,
+.theme-light .form-textarea-field {
+  background: #f8fafc !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  color: #0f172a !important;
+}
+
+.theme-light .form-input-label {
+  color: #334155 !important;
+}
+
+/* 4. PROFILE PAGE (Resolving Dark Profile Header & Tabs in Screenshot 1) */
+.theme-light .profile-page-container {
+  color: #0f172a !important;
+}
+
+.theme-light .profile-header-card {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.09) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04) !important;
+}
+
+.theme-light .profile-banner-bg {
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.15) 0%, rgba(147, 51, 234, 0.12) 50%, rgba(236, 72, 153, 0.1) 100%) !important;
+}
+
+.theme-light .user-name {
+  color: #0f172a !important;
+}
+
+.theme-light .user-handle {
+  color: #475569 !important;
+}
+
+.theme-light .user-email-text {
+  color: #64748b !important;
+}
+
+.theme-light .user-bio-quote {
+  color: #334155 !important;
+}
+
+.theme-light .stat-pill {
+  background: #f8fafc !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+.theme-light .stat-val {
+  color: #0f172a !important;
+}
+
+.theme-light .stat-lbl {
+  color: #64748b !important;
+}
+
+.theme-light .profile-tabs-nav {
+  background: #f1f5f9 !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+.theme-light .tab-item-btn {
+  color: #475569 !important;
+}
+
+.theme-light .tab-item-btn:hover {
+  color: #0f172a !important;
+  background: rgba(0, 0, 0, 0.04) !important;
+}
+
+.theme-light .tab-item-btn.active {
+  background: #ffffff !important;
+  color: #0284c7 !important;
+  border: 1px solid rgba(2, 132, 199, 0.3) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
+}
+
+.theme-light .tab-badge {
+  background: rgba(0, 0, 0, 0.06) !important;
+  color: #334155 !important;
+}
+
+.theme-light .tab-item-btn.active .tab-badge {
+  background: rgba(2, 132, 199, 0.15) !important;
+  color: #0284c7 !important;
+}
+
+.theme-light .pane-title {
+  color: #0f172a !important;
+}
+
+.theme-light .pane-subtitle {
+  color: #64748b !important;
+}
+
+.theme-light .empty-tab-state,
+.theme-light .empty-state-box {
+  background: #ffffff !important;
+  border: 1px dashed rgba(0, 0, 0, 0.15) !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02) !important;
+}
+
+.theme-light .empty-title {
+  color: #0f172a !important;
+}
+
+.theme-light .empty-desc {
+  color: #64748b !important;
+}
+
+.theme-light .song-item-card,
+.theme-light .playlist-library-card {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03) !important;
+}
+
+.theme-light .song-item-card:hover,
+.theme-light .playlist-library-card:hover {
+  border-color: #0284c7 !important;
+  box-shadow: 0 8px 25px rgba(2, 132, 199, 0.12) !important;
+}
+
+.theme-light .card-song-title,
+.theme-light .pl-card-name {
+  color: #0f172a !important;
+}
+
+.theme-light .card-song-artist {
+  color: #64748b !important;
+}
+
+.theme-light .profile-settings-card {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04) !important;
+}
+
+.theme-light .setting-section-title {
+  color: #0f172a !important;
+}
+
+.theme-light .setting-section-subtitle {
+  color: #64748b !important;
+}
+
+.theme-light .form-input-control {
+  background: #f8fafc !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  color: #0f172a !important;
+}
+
+.theme-light .form-input-control:focus {
+  background: #ffffff !important;
+  border-color: #0284c7 !important;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15) !important;
+}
+
+.theme-light .setting-label {
+  color: #334155 !important;
+}
+
+.theme-light .security-item {
+  background: #f8fafc !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+.theme-light .sec-title {
+  color: #0f172a !important;
+}
+
+.theme-light .sec-desc {
+  color: #64748b !important;
+}
+
+/* 5. SEARCH RESULTS VIEW */
+.theme-light .search-results-page {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+.theme-light .search-hero-banner {
+  background: #ffffff !important;
+  border: 1px solid rgba(2, 132, 199, 0.25) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04) !important;
+}
+
+.theme-light .search-hero-title {
+  color: #0f172a !important;
+}
+
+.theme-light .track-card-row {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03) !important;
+}
+
+.theme-light .track-card-row:hover {
+  background: #ffffff !important;
+  border-color: #0284c7 !important;
+  box-shadow: 0 8px 25px rgba(2, 132, 199, 0.12) !important;
+}
+
+.theme-light .track-main-title {
+  color: #0f172a !important;
+}
+
+.theme-light .artist-name-txt {
+  color: #475569 !important;
+}
+
+.theme-light .track-waveform-bar-wrapper {
+  background: #f1f5f9 !important;
+}
+
+.theme-light .single-wave-bar {
+  background: rgba(0, 0, 0, 0.18) !important;
+}
+
+.theme-light .track-card-row:hover .single-wave-bar {
+  background: linear-gradient(180deg, #0284c7 0%, #3b82f6 100%) !important;
+}
+
+.theme-light .filter-chip-btn {
+  background: #f1f5f9 !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  color: #475569 !important;
+}
+
+.theme-light .filter-chip-btn.active {
+  background: rgba(2, 132, 199, 0.12) !important;
+  border-color: #0284c7 !important;
+  color: #0284c7 !important;
+}
+
+.theme-light .btn-play-now {
+  background: rgba(2, 132, 199, 0.12) !important;
+  border-color: rgba(2, 132, 199, 0.3) !important;
+  color: #0284c7 !important;
+}
+
+.theme-light .btn-play-now:hover {
+  background: #0284c7 !important;
+  color: #ffffff !important;
+}
+
+.theme-light .action-icon-btn {
+  background: #f1f5f9 !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  color: #64748b !important;
+}
+
+.theme-light .action-icon-btn:hover {
+  background: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+/* 6. STICKY BOTTOM MINI PLAYER */
+.theme-light .sc-bottom-mini-player {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-top: 1px solid rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 -4px 25px rgba(0, 0, 0, 0.08) !important;
+}
+
+.theme-light .sc-ctrl-btn {
+  color: #475569 !important;
+}
+
+.theme-light .sc-ctrl-btn:hover {
+  color: #0f172a !important;
+}
+
+.theme-light .sc-play-btn {
+  background: #0f172a !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15) !important;
+}
+
+.theme-light .sc-play-btn:hover {
+  background: #0284c7 !important;
+  color: #ffffff !important;
+}
+
+.theme-light .sc-mini-title {
+  color: #0f172a !important;
+}
+
+.theme-light .sc-mini-artist {
+  color: #64748b !important;
+}
+
+.theme-light .sc-mini-time {
+  color: #64748b !important;
+}
+
+.theme-light .sc-mini-progress-track {
+  background: rgba(0, 0, 0, 0.12) !important;
+}
+
+.theme-light .sc-mini-action-btn {
+  background: #f1f5f9 !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  color: #475569 !important;
+}
+
+.theme-light .sc-mini-action-btn:hover {
+  background: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+/* 7. APP SUB FOOTER */
+.theme-light .app-sub-footer {
+  background: #f1f5f9 !important;
+  border-top: 1px solid rgba(0, 0, 0, 0.08) !important;
+  color: #64748b !important;
+}
+
+/* 8. GLOBAL TOAST NOTIFICATION LIGHT MODE */
+.theme-light .toast-card {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.8) !important;
+}
+
+.theme-light .toast-card:hover {
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.16) !important;
+}
+
+.theme-light .toast-msg-text {
+  color: #0f172a !important;
+}
+
+.theme-light .toast-close-btn {
+  color: #64748b !important;
+}
+
+.theme-light .toast-close-btn:hover {
+  background: rgba(0, 0, 0, 0.06) !important;
+  color: #0f172a !important;
+}
+
+.theme-light .toast-progress-track {
+  background: rgba(0, 0, 0, 0.06) !important;
+}
+
+/* 9. SHARE MODAL LIGHT MODE */
+.theme-light .share-modal-card {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.15), 0 0 25px rgba(2, 132, 199, 0.1) !important;
+  color: #0f172a !important;
+}
+
+.theme-light .share-modal-title {
+  color: #0f172a !important;
+}
+
+.theme-light .share-modal-subtitle {
+  color: #64748b !important;
+}
+
+.theme-light .share-track-preview-box {
+  background: #f8fafc !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+.theme-light .preview-song-title {
+  color: #0f172a !important;
+}
+
+.theme-light .preview-song-artist {
+  color: #64748b !important;
+}
+
+.theme-light .share-field-label {
+  color: #334155 !important;
+}
+
+.theme-light .share-input-row {
+  background: #f1f5f9 !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+}
+
+.theme-light .share-link-input {
+  color: #0284c7 !important;
+}
+
+.theme-light .social-section-title {
+  color: #64748b !important;
+}
+
+.theme-light .social-btn {
+  background: #f8fafc !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  color: #334155 !important;
+}
+
+.theme-light .modal-close-btn {
+  background: rgba(0, 0, 0, 0.06) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  color: #64748b !important;
+}
+
+.theme-light .modal-close-btn:hover {
+  background: rgba(0, 0, 0, 0.12) !important;
+  color: #0f172a !important;
+}
+
