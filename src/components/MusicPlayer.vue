@@ -2077,12 +2077,6 @@ const isMobileDevice = typeof navigator !== 'undefined' && (/Android|webOS|iPhon
 function setupWebAudio(force = false) {
   if (!audioRef.value) return;
 
-  // On iOS and mobile devices, avoid hijacking the audio element with createMediaElementSource unless custom EQ or 8D audio is used.
-  // This allows the OS native audio pipeline and MediaSession API to keep playing in the background / lock-screen without AudioContext being frozen by the OS.
-  if ((isMobileDevice || isIOS) && !force && !is8DEnabled.value && activeEqPreset.value === 'flat') {
-    return;
-  }
-
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!audioContext) {
