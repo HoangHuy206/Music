@@ -1781,6 +1781,7 @@ function playAllOfflineTracks() {
 function updateEqGain(idx, val) {
   eqGains.value[idx] = parseFloat(val);
   activeEqPreset.value = 'custom';
+  setupWebAudio(true);
   if (eqNodes[idx]) {
     eqNodes[idx].gain.value = parseFloat(val);
   }
@@ -1788,6 +1789,9 @@ function updateEqGain(idx, val) {
 
 function applyEqPreset(preset) {
   activeEqPreset.value = preset.id;
+  if (preset.id !== 'flat') {
+    setupWebAudio(true);
+  }
   preset.gains.forEach((g, idx) => {
     eqGains.value[idx] = g;
     if (eqNodes[idx]) {
@@ -1802,7 +1806,9 @@ function resetEq() {
 
 function toggle8D() {
   is8DEnabled.value = !is8DEnabled.value;
-  if (!is8DEnabled.value && pannerNode) {
+  if (is8DEnabled.value) {
+    setupWebAudio(true);
+  } else if (pannerNode) {
     pannerNode.pan.value = 0;
   }
 }
@@ -1979,10 +1985,18 @@ function selectSongFromQueue(index) {
   });
 }
 
+const isIOS = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+const isMobileDevice = typeof navigator !== 'undefined' && (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 2));
+
 /**
  * Initialize Web Audio API AudioContext, AnalyserNode, 10-Band EQ & StereoPanner
  */
-function setupWebAudio() {
+function setupWebAudio(force = false) {
+  // On iOS / Mobile devices, Web Audio API (createMediaElementSource) is muted/suspended by Apple WebKit when the screen locks or tab goes to background.
+  // We keep the native audio output clean on mobile for 100% reliable background audio on lock screen.
+  if ((isIOS || isMobileDevice) && !force && !is8DEnabled.value && !hasCustomEq.value) {
+    return;
+  }
   if (audioContext && sourceNode) return;
   if (!audioRef.value) return;
 
@@ -2081,7 +2095,7 @@ function startVisualizerLoop() {
       pannerNode.pan.value = 0;
     }
 
-    if (analyserNode && isPlaying.value && dataArray) {
+    if (analyserNode && sourceNode && isPlaying.value && dataArray) {
       analyserNode.getByteFrequencyData(dataArray);
 
       // Calculate Bass Energy (bins 0-5)
@@ -2097,6 +2111,20 @@ function startVisualizerLoop() {
         vocalSum += dataArray[i];
       }
       vocalEnergy.value = vocalSum / (12 * 255);
+    } else if (isPlaying.value) {
+      // Smooth simulated rhythmic energy for mobile/native background audio playback
+      const t = Date.now() * 0.005;
+      const beat = Math.sin(t * 2.5) * 0.5 + 0.5;
+      bassEnergy.value = 0.2 + beat * 0.45;
+      vocalEnergy.value = 0.3 + Math.cos(t * 3.8) * 0.3;
+
+      if (!dataArray) {
+        dataArray = new Uint8Array(64);
+      }
+      for (let i = 0; i < dataArray.length; i++) {
+        const wave = Math.sin(t * 3 + i * 0.35) * Math.cos(t * 1.5 - i * 0.2);
+        dataArray[i] = Math.max(30, Math.min(255, Math.floor(110 + wave * 90 + beat * 50)));
+      }
     } else {
       bassEnergy.value = Math.max(0, bassEnergy.value * 0.88 - 0.02);
       vocalEnergy.value = Math.max(0, vocalEnergy.value * 0.85);
