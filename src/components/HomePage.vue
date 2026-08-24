@@ -796,7 +796,8 @@ async function handleSupportSubmit() {
 
   isSubmittingSupport.value = true;
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  // 45s timeout to allow Render free tier backend to spin up if sleeping
+  const timeoutId = setTimeout(() => controller.abort(), 45000);
 
   try {
     const res = await fetch(`${API_BASE_URL}/api/support`, {
@@ -817,7 +818,7 @@ async function handleSupportSubmit() {
   } catch (err) {
     clearTimeout(timeoutId);
     if (err.name === 'AbortError') {
-      showToast('Hết thời gian chờ phản hồi từ máy chủ. Vui lòng thử lại sau!', 'error');
+      showToast('Hết thời gian chờ phản hồi từ máy chủ. Máy chủ có thể đang khởi động lại, vui lòng thử lại sau giây lát!', 'error');
     } else {
       showToast('Lỗi kết nối khi gửi yêu cầu hỗ trợ.', 'error');
     }

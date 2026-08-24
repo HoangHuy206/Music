@@ -9,13 +9,12 @@ function getApiBaseUrl() {
   }
 
   // When accessing via LAN IP (e.g., 192.168.x.x:3000 on mobile)
-  if (
-    typeof window !== 'undefined' &&
-    window.location.hostname &&
-    window.location.hostname !== 'localhost' &&
-    window.location.hostname !== '127.0.0.1'
-  ) {
-    return `${window.location.protocol}//${window.location.hostname}:5000`;
+  if (typeof window !== 'undefined' && window.location.hostname) {
+    const host = window.location.hostname;
+    // Private LAN IPs (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+    if (/^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host)) {
+      return `${window.location.protocol}//${host}:5000`;
+    }
   }
 
   return 'http://localhost:5000';
