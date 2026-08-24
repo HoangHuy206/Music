@@ -819,6 +819,9 @@
       :src="audioSourceUrl"
       crossorigin="anonymous"
       preload="auto"
+      playsinline
+      webkit-playsinline="true"
+      x-webkit-airplay="allow"
       @timeupdate="onTimeUpdate"
       @loadedmetadata="onLoadedMetadata"
       @ended="onTrackEnded"
@@ -1514,17 +1517,21 @@ function updateSystemMediaSession() {
     return;
   }
 
-  const coverUrl = song.coverImage ? formatMediaUrl(song.coverImage) : '';
-  const artwork = coverUrl
-    ? [
-        { src: coverUrl, sizes: '96x96', type: 'image/png' },
-        { src: coverUrl, sizes: '128x128', type: 'image/png' },
-        { src: coverUrl, sizes: '192x192', type: 'image/png' },
-        { src: coverUrl, sizes: '256x256', type: 'image/png' },
-        { src: coverUrl, sizes: '384x384', type: 'image/png' },
-        { src: coverUrl, sizes: '512x512', type: 'image/png' },
-      ]
-    : [];
+  let coverUrl = song.coverImage ? formatMediaUrl(song.coverImage) : '';
+  if (coverUrl && coverUrl.startsWith('/') && typeof window !== 'undefined') {
+    coverUrl = `${window.location.origin}${coverUrl}`;
+  }
+  if (!coverUrl) {
+    coverUrl = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80';
+  }
+  const artwork = [
+    { src: coverUrl, sizes: '96x96', type: 'image/jpeg' },
+    { src: coverUrl, sizes: '128x128', type: 'image/jpeg' },
+    { src: coverUrl, sizes: '192x192', type: 'image/jpeg' },
+    { src: coverUrl, sizes: '256x256', type: 'image/jpeg' },
+    { src: coverUrl, sizes: '384x384', type: 'image/jpeg' },
+    { src: coverUrl, sizes: '512x512', type: 'image/jpeg' },
+  ];
 
   try {
     navigator.mediaSession.metadata = new MediaMetadata({
@@ -2456,14 +2463,15 @@ async function prefetchUpcomingTracks() {
     if (Array.isArray(freshTracks) && freshTracks.length > 0) {
       cloudDiscoveredTracks.value = freshTracks;
       const existingIds = new Set(songList.value.map((s) => String(s._id || s.title)));
-      const currentCore = getCoreSongTitle(current.title);
-
+      const currentIsRemix = isSongRemix(current);
       const newUniqueTracks = freshTracks.filter((t) => {
         if (!t || isJunkOrPlaceholderSong(t)) return false;
         const trackId = String(t._id || t.title);
         if (existingIds.has(trackId) || playedSongIds.value.has(trackId)) return false;
         const coreTitle = getCoreSongTitle(t.title);
         if (!coreTitle || coreTitle === currentCore || playedHistory.value.some((h) => h === coreTitle)) return false;
+        const tIsRemix = isSongRemix(t);
+        if (currentIsRemix ? !tIsRemix : tIsRemix) return false;
         return true;
       });
 
@@ -2492,16 +2500,20 @@ async function onTrackEnded() {
 
   const curCore = getCoreSongTitle(currentSong.value?.title);
   const curId = String(currentSong.value?._id || currentSong.value?.id || '');
+  const currentIsRemix = isSongRemix(currentSong.value);
 
-  // 1. Advance to first distinct unplayed track ahead in queue
+  // 1. Advance to first distinct unplayed track ahead in queue matching exact genre
   let nextIdx = -1;
   for (let i = currentSongIndex.value + 1; i < songList.value.length; i++) {
     const candidate = songList.value[i];
     if (isCandidateDuplicate(candidate, currentSong.value)) {
       continue;
     }
-    nextIdx = i;
-    break;
+    const cIsRemix = isSongRemix(candidate);
+    if (currentIsRemix ? cIsRemix : !cIsRemix) {
+      nextIdx = i;
+      break;
+    }
   }
 
   if (nextIdx !== -1) {
@@ -2519,7 +2531,7 @@ async function onTrackEnded() {
     return;
   }
 
-  // 2. If at the end of queue, fetch next unique smart track and append to queue
+  // 2. If no matching genre track ahead in queue, fetch next unique smart track and append to queue
   const nextSong = await getNextSmartGenreSong();
   if (nextSong) {
     songList.value.push(nextSong);
@@ -2627,16 +2639,20 @@ async function switchSong(direction) {
   if (direction > 0) {
     const curCore = getCoreSongTitle(currentSong.value?.title);
     const curId = String(currentSong.value?._id || currentSong.value?.id || '');
+    const currentIsRemix = isSongRemix(currentSong.value);
 
-    // 1. Look ahead in queue for the first distinct, unplayed track
+    // 1. Look ahead in queue for the first distinct, matching-genre track
     let nextIdx = -1;
     for (let i = currentSongIndex.value + 1; i < songList.value.length; i++) {
       const candidate = songList.value[i];
       if (isCandidateDuplicate(candidate, currentSong.value)) {
         continue;
       }
-      nextIdx = i;
-      break;
+      const cIsRemix = isSongRemix(candidate);
+      if (currentIsRemix ? cIsRemix : !cIsRemix) {
+        nextIdx = i;
+        break;
+      }
     }
 
     if (nextIdx !== -1) {
@@ -2834,12 +2850,13 @@ watch(currentSongIndex, () => {
 });
 
 function handleVisibilityChange() {
-  if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-    if (audioContext && audioContext.state === 'suspended' && isPlaying.value) {
+  if (typeof document === 'undefined') return;
+  if (isPlaying.value && audioRef.value) {
+    if (audioContext && audioContext.state === 'suspended') {
       audioContext.resume().catch(() => {});
     }
-    updateSystemMediaSession();
   }
+  updateSystemMediaSession();
 }
 
 onMounted(() => {
@@ -2851,6 +2868,8 @@ onMounted(() => {
   startAutoColorCycle();
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
   }
 });
 
@@ -2859,6 +2878,8 @@ onUnmounted(() => {
   if (animationFrameId) cancelAnimationFrame(animationFrameId);
   if (typeof document !== 'undefined') {
     document.removeEventListener('visibilitychange', handleVisibilityChange);
+    window.removeEventListener('pagehide', handleVisibilityChange);
+    window.removeEventListener('focus', handleVisibilityChange);
   }
   if (audioContext && audioContext.state !== 'closed') {
     try {
