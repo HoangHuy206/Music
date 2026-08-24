@@ -138,7 +138,12 @@
             <div class="vinyl-sheen sheen-2"></div>
 
             <!-- Cover Art Centerpiece / Default Vinyl Label -->
-            <div class="vinyl-center" :class="{ 'is-default-vinyl': !hasValidCoverImage }">
+            <div
+              class="vinyl-center"
+              :class="{ 'is-default-vinyl': !hasValidCoverImage, 'is-clickable-cover': hasValidCoverImage }"
+              :title="hasValidCoverImage ? 'Bấm để phóng to xem ảnh bìa 🔍' : ''"
+              @click.stop="hasValidCoverImage && openCoverImagePreview(currentSong)"
+            >
               <img
                 v-if="hasValidCoverImage && currentSong"
                 :src="formatMediaUrl(currentSong?.coverImage)"
@@ -146,6 +151,11 @@
                 class="cover-art-img"
                 @error="handleImageFallback"
               />
+              <div v-if="hasValidCoverImage" class="vinyl-zoom-badge" title="Phóng to ảnh">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                  <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 14zM12 10h-2v2H9v-2H7V9h2V7h1v2h2v1z"/>
+                </svg>
+              </div>
               <div v-else class="vinyl-default-label" :style="{ borderColor: `${visualizerColor}55` }">
                 <div class="label-inner-ring" :style="{ borderColor: `${visualizerColor}25` }"></div>
                 <div class="label-top-curve">LP STEREO</div>
@@ -556,7 +566,64 @@
       @create-and-add="handleCreateAndAddPlaylist"
     />
 
-    <!-- 3. Queue / Favorites / Playlists Side Drawer -->
+    <!-- 3. Album Cover Art Fullscreen Lightbox Modal -->
+    <transition name="lightbox-zoom">
+      <div
+        v-if="isCoverPreviewOpen && previewCoverSong"
+        class="cover-lightbox-backdrop"
+        @click.self="isCoverPreviewOpen = false"
+      >
+        <div class="cover-lightbox-card" :style="{ borderColor: `${visualizerColor}55` }">
+          <!-- Close Button -->
+          <button
+            class="lightbox-close-btn"
+            title="Đóng (ESC)"
+            @click="isCoverPreviewOpen = false"
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </svg>
+          </button>
+
+          <!-- Large High-Res Image with Glow -->
+          <div class="lightbox-img-wrapper">
+            <img
+              :src="formatMediaUrl(previewCoverSong.coverImage)"
+              :alt="previewCoverSong.title"
+              class="lightbox-large-img"
+              :style="{
+                boxShadow: `0 20px 60px -10px ${visualizerColor}50, 0 0 35px ${visualizerColor}30`
+              }"
+            />
+          </div>
+
+          <!-- Metadata & Actions -->
+          <div class="lightbox-footer">
+            <div class="lightbox-info">
+              <h3 class="lightbox-title">{{ previewCoverSong.title }}</h3>
+              <p class="lightbox-artist">{{ previewCoverSong.artist || 'Nghệ Sĩ' }}</p>
+            </div>
+            <div class="lightbox-actions">
+              <a
+                :href="formatMediaUrl(previewCoverSong.coverImage)"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="lightbox-btn-action"
+                :style="{ borderColor: `${visualizerColor}60`, color: visualizerColor }"
+                title="Mở ảnh gốc trong tab mới"
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                  <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
+                </svg>
+                <span>Xem Ảnh Gốc</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- 4. Queue / Favorites / Playlists Side Drawer -->
     <transition name="drawer-slide">
       <div v-if="isQueueOpen" class="queue-drawer-backdrop" @click.self="isQueueOpen = false">
         <div class="queue-drawer-panel" :style="{ borderColor: `${visualizerColor}35` }">
@@ -894,6 +961,17 @@ const userPlaylists = ref([]);
 const queueActiveTab = ref('queue'); // 'queue' | 'favorites' | 'playlists' | 'offline'
 const isAddToPlaylistModalOpen = ref(false);
 const songToAddToPlaylist = ref(null);
+
+// Cover Art Image Lightbox Preview State
+const isCoverPreviewOpen = ref(false);
+const previewCoverSong = ref(null);
+
+function openCoverImagePreview(song = null) {
+  const target = song || currentSong.value;
+  if (!target || !target.coverImage) return;
+  previewCoverSong.value = target;
+  isCoverPreviewOpen.value = true;
+}
 
 const isCurrentSongFavorite = computed(() => {
   if (!currentSong.value) return false;
@@ -2927,6 +3005,12 @@ function handleVisibilityChange() {
   updateSystemMediaSession();
 }
 
+function handleGlobalKeydown(e) {
+  if (e.key === 'Escape' && isCoverPreviewOpen.value) {
+    isCoverPreviewOpen.value = false;
+  }
+}
+
 onMounted(() => {
   fetchSongs();
   fetchFavorites();
@@ -2938,6 +3022,7 @@ onMounted(() => {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('pagehide', handleVisibilityChange);
     window.addEventListener('focus', handleVisibilityChange);
+    window.addEventListener('keydown', handleGlobalKeydown);
   }
 });
 
@@ -2948,6 +3033,7 @@ onUnmounted(() => {
     document.removeEventListener('visibilitychange', handleVisibilityChange);
     window.removeEventListener('pagehide', handleVisibilityChange);
     window.removeEventListener('focus', handleVisibilityChange);
+    window.removeEventListener('keydown', handleGlobalKeydown);
   }
   if (audioContext && audioContext.state !== 'closed') {
     try {
@@ -3061,6 +3147,7 @@ defineExpose({
   handleSeek,
   handleToggleFavorite,
   openAddToPlaylistModal,
+  openCoverImagePreview,
   handleTogglePiP,
   handleToggleOffline,
   loadOfflineTracks,
@@ -5161,6 +5248,241 @@ defineExpose({
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/* Clickable Vinyl Center with Zoom Badge */
+.vinyl-center.is-clickable-cover {
+  cursor: pointer;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+}
+
+.vinyl-center.is-clickable-cover:hover {
+  transform: translate(-50%, -50%) scale(1.08) !important;
+  box-shadow: 0 0 25px rgba(255, 255, 255, 0.4), inset 0 0 15px rgba(0, 0, 0, 0.6) !important;
+}
+
+.vinyl-zoom-badge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.6);
+  width: 38px;
+  height: 38px;
+  background: rgba(10, 12, 18, 0.82);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  opacity: 0;
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+  transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 10;
+}
+
+.vinyl-center.is-clickable-cover:hover .vinyl-zoom-badge {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+/* ==========================================================================
+   COVER ART FULLSCREEN LIGHTBOX MODAL
+   ========================================================================== */
+.cover-lightbox-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(4, 6, 10, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  box-sizing: border-box;
+}
+
+.cover-lightbox-card {
+  position: relative;
+  max-width: 520px;
+  width: 100%;
+  background: linear-gradient(165deg, rgba(20, 26, 40, 0.95), rgba(10, 14, 22, 0.98));
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  border-radius: 26px;
+  padding: 1.75rem;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.lightbox-close-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 10;
+}
+
+.lightbox-close-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: #ef4444;
+  color: #ffffff;
+  transform: rotate(90deg) scale(1.1);
+}
+
+.lightbox-img-wrapper {
+  width: 100%;
+  max-width: 440px;
+  aspect-ratio: 1 / 1;
+  border-radius: 20px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000000;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.lightbox-large-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.4s ease;
+}
+
+.lightbox-large-img:hover {
+  transform: scale(1.03);
+}
+
+.lightbox-footer {
+  width: 100%;
+  margin-top: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.lightbox-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.lightbox-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lightbox-artist {
+  font-size: 0.92rem;
+  color: #94a3b8;
+  margin: 0.25rem 0 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lightbox-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-shrink: 0;
+}
+
+.lightbox-btn-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 1.1rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.lightbox-btn-action:hover {
+  background: rgba(255, 255, 255, 0.18);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* Lightbox Transitions */
+.lightbox-zoom-enter-active,
+.lightbox-zoom-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.lightbox-zoom-enter-active .cover-lightbox-card,
+.lightbox-zoom-leave-active .cover-lightbox-card {
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+}
+
+.lightbox-zoom-enter-from,
+.lightbox-zoom-leave-to {
+  opacity: 0;
+}
+
+.lightbox-zoom-enter-from .cover-lightbox-card {
+  transform: scale(0.85) translateY(20px);
+  opacity: 0;
+}
+
+.lightbox-zoom-leave-to .cover-lightbox-card {
+  transform: scale(0.9) translateY(15px);
+  opacity: 0;
+}
+
+@media (max-width: 600px) {
+  .cover-lightbox-card {
+    padding: 1.2rem;
+    border-radius: 20px;
+  }
+  .lightbox-title {
+    font-size: 1.05rem;
+  }
+  .lightbox-artist {
+    font-size: 0.82rem;
+  }
+  .lightbox-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.8rem;
+  }
+  .lightbox-actions {
+    justify-content: stretch;
+  }
+  .lightbox-btn-action {
+    width: 100%;
+    justify-content: center;
+  }
 }
 </style>
 
