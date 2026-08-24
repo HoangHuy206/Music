@@ -817,7 +817,6 @@
     <audio
       ref="audioRef"
       :src="audioSourceUrl"
-      crossorigin="anonymous"
       preload="auto"
       playsinline
       webkit-playsinline="true"
@@ -2060,8 +2059,14 @@ const isMobileDevice = typeof navigator !== 'undefined' && (/Android|webOS|iPhon
 /**
  * Initialize Web Audio API AudioContext, AnalyserNode, GainNode, 10-Band EQ & StereoPanner
  */
-function setupWebAudio() {
+function setupWebAudio(force = false) {
   if (!audioRef.value) return;
+
+  // On mobile / iOS, do not attach createMediaElementSource unless user explicitly activates EQ or 8D effect.
+  // This preserves native browser audio permissions so background audio and lock screen play continuously without being killed by iOS power manager!
+  if ((isMobileDevice || isIOS) && !force && !is8DEnabled.value && activeEqPreset.value === 'flat') {
+    return;
+  }
 
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -2170,7 +2175,7 @@ function startVisualizerLoop() {
       pannerNode.pan.value = 0;
     }
 
-    if (analyserNode && isPlaying.value && dataArray) {
+    if (analyserNode && isPlaying.value && dataArray && sourceNode) {
       analyserNode.getByteFrequencyData(dataArray);
 
       // Bass Energy (bins 0-7: Kick & Bassline)
@@ -2186,6 +2191,11 @@ function startVisualizerLoop() {
         vocalSum += dataArray[i];
       }
       vocalEnergy.value = Math.min(1, vocalSum / (16 * 200));
+    } else if (isPlaying.value) {
+      // Dynamic simulated beat pulses for mobile devices to keep native audio output intact
+      const t = performance.now() * 0.003;
+      bassEnergy.value = 0.45 + Math.sin(t * 2.5) * 0.35;
+      vocalEnergy.value = 0.4 + Math.cos(t * 1.8) * 0.3;
     } else {
       bassEnergy.value = Math.max(0, bassEnergy.value * 0.85 - 0.02);
       vocalEnergy.value = Math.max(0, vocalEnergy.value * 0.85);
@@ -2205,8 +2215,12 @@ function startVisualizerLoop() {
 
     for (let i = 0; i < numBars; i++) {
       let val = 0;
-      if (dataArray && isPlaying.value) {
+      if (dataArray && isPlaying.value && sourceNode) {
         val = dataArray[i * step] || 0;
+      } else if (isPlaying.value) {
+        const t = performance.now() * 0.003;
+        const wave = Math.sin(t * 2 + i * 0.35) * 0.4 + Math.cos(t * 3.5 + i * 0.5) * 0.3 + 0.35;
+        val = Math.max(20, Math.min(255, Math.round(wave * 230)));
       }
 
       const percent = Math.min(1, Math.max(0.04, val / 255));

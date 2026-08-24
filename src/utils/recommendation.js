@@ -5,6 +5,7 @@
  */
 
 import { API_BASE_URL } from '../config/api.js';
+import { getAuthHeaders, currentUser } from './auth.js';
 
 // Remix detection keywords
 const REMIX_KEYWORDS = [
@@ -219,38 +220,35 @@ export function recordSongPlayEvent(song, listenDurationSeconds = 15, userId = n
 
   // Sync to Backend if authenticated & notify UI components
   try {
-    const rawUser = localStorage.getItem('aura_auth_user');
-    if (rawUser) {
-      const authUser = JSON.parse(rawUser);
-      if (authUser && authUser.token) {
-        fetch(`${API_BASE_URL}/api/auth/record-play`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${authUser.token}`,
-          },
-          body: JSON.stringify({
-            songId: song._id || '',
-            title: song.title,
-            artist: song.artist || 'Unknown',
-            coverImage: song.coverImage || '',
-            audioUrl: song.audioUrl || '',
-            duration: song.duration || 0,
-            genre,
-            isRemix,
-            isOnline: !!song.isOnline,
-            listenDurationSeconds,
-          }),
-        }).then(() => {
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('auramusic:play-recorded', {
-              detail: { songId: song._id, title: song.title, genre, artist }
-            }));
-          }
-        }).catch((err) => {
-          console.warn('[Sync Play Event Notice]:', err.message);
-        });
-      }
+    const authHeaders = getAuthHeaders();
+    if (authHeaders && authHeaders.Authorization) {
+      fetch(`${API_BASE_URL}/api/auth/record-play`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        body: JSON.stringify({
+          songId: song._id || '',
+          title: song.title,
+          artist: song.artist || 'Unknown',
+          coverImage: song.coverImage || '',
+          audioUrl: song.audioUrl || '',
+          duration: song.duration || 0,
+          genre,
+          isRemix,
+          isOnline: !!song.isOnline,
+          listenDurationSeconds,
+        }),
+      }).then(() => {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('auramusic:play-recorded', {
+            detail: { songId: song._id, title: song.title, genre, artist }
+          }));
+        }
+      }).catch((err) => {
+        console.warn('[Sync Play Event Notice]:', err.message);
+      });
     } else {
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('auramusic:play-recorded', {
@@ -270,14 +268,11 @@ export function recordSongPlayEvent(song, listenDurationSeconds = 15, userId = n
  */
 export async function fetchPersonalizedRecommendations(apiBaseUrl = API_BASE_URL) {
   try {
-    let headers = { 'Content-Type': 'application/json' };
-    const rawUser = localStorage.getItem('aura_auth_user');
-    if (rawUser) {
-      const authUser = JSON.parse(rawUser);
-      if (authUser && authUser.token) {
-        headers['Authorization'] = `Bearer ${authUser.token}`;
-      }
-    }
+    const authHeaders = getAuthHeaders();
+    const headers = {
+      'Content-Type': 'application/json',
+      ...authHeaders,
+    };
 
     const res = await fetch(`${apiBaseUrl}/api/auth/recommendations`, { headers });
     if (!res.ok) throw new Error('Failed to fetch recommendations');
@@ -288,7 +283,7 @@ export async function fetchPersonalizedRecommendations(apiBaseUrl = API_BASE_URL
         isPersonalized: data.isPersonalized ?? false,
         hasListeningHistory: data.hasListeningHistory ?? (data.totalListens > 0 || (data.forYouMix && data.forYouMix.length > 0)),
         totalListens: data.totalListens || 0,
-        username: data.username || 'Khách',
+        username: data.username || (currentUser.value?.displayName || currentUser.value?.username || 'Bạn'),
         forYouMix: data.forYouMix || [],
         genrePlaylists: data.genrePlaylists || [],
         frequentlyPlayed: data.frequentlyPlayed || [],

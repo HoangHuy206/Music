@@ -1121,11 +1121,14 @@ export async function getPersonalizedRecommendations(req, res) {
     );
 
     const listenHistory = (user && Array.isArray(user.listenHistory)) ? user.listenHistory : [];
-    const hasListeningHistory = listenHistory.length >= 2;
+    const favoriteSongs = (user && Array.isArray(user.favoriteSongs)) ? user.favoriteSongs : [];
+    const favoriteSongIds = new Set(favoriteSongs.map((s) => String(s._id || s)));
+    const totalListens = user?.tasteProfile?.totalListens || listenHistory.length || 0;
+    const hasListeningHistory = !!(user && (listenHistory.length > 0 || totalListens > 0 || favoriteSongs.length > 0));
 
     // Calculate genre affinities and play weights
-    const genreScoresMap = {};
-    const artistScoresMap = {};
+    const genreScoresMap = user?.tasteProfile?.genreScores ? (user.tasteProfile.genreScores instanceof Map ? Object.fromEntries(user.tasteProfile.genreScores) : user.tasteProfile.genreScores) : {};
+    const favoriteArtistsMap = user?.tasteProfile?.favoriteArtists ? (user.tasteProfile.favoriteArtists instanceof Map ? Object.fromEntries(user.tasteProfile.favoriteArtists) : user.tasteProfile.favoriteArtists) : {};
     let totalScoreWeight = 0;
 
     for (const item of listenHistory) {
@@ -1136,7 +1139,7 @@ export async function getPersonalizedRecommendations(req, res) {
         totalScoreWeight += weight;
       }
       if (item.artist) {
-        artistScoresMap[item.artist] = (artistScoresMap[item.artist] || 0) + weight;
+        favoriteArtistsMap[item.artist] = (favoriteArtistsMap[item.artist] || 0) + weight;
       }
     }
 

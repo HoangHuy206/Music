@@ -723,16 +723,18 @@ export const searchSongs = async (req, res) => {
       });
     }
 
-    // 1. Local MongoDB Search (up to 15)
+    // 1. Local MongoDB Search by Song Title & Song Lyrics (up to 50 tracks)
     const regexPattern = buildVietnameseRegex(q);
     const localSongs = await Song.find({
       $or: [
         { title: { $regex: regexPattern, $options: 'i' } },
         { artist: { $regex: regexPattern, $options: 'i' } },
+        { 'lyricsData.text': { $regex: regexPattern, $options: 'i' } },
+        { lyricsRaw: { $regex: regexPattern, $options: 'i' } },
       ],
     })
       .populate('userId', 'username displayName avatar')
-      .limit(15)
+      .limit(50)
       .sort({ createdAt: -1 });
 
     const formattedLocalSongs = localSongs.map((s) => ({
@@ -741,28 +743,48 @@ export const searchSongs = async (req, res) => {
       isSpotify: false,
     }));
 
-    // 2. Full-length Online Cloud Music Search (SoundCloud Full Audio Streams - 25+ tracks)
+    // 2. Comprehensive Multi-Query Cloud Music Search (SoundCloud Full Audio Streams & Related Tracks)
     let onlineSongs = [];
     try {
       const scClientId = await getSoundCloudClientId();
-      const scRes = await axios.get('https://api-v2.soundcloud.com/search/tracks', {
-        params: {
-          q,
-          client_id: scClientId,
-          limit: 35,
-        },
-        timeout: 6000,
+      
+      // Query primary search term plus expanded related variants in parallel
+      const searchQueries = [
+        { query: q, limit: 50 },
+        { query: `${q} remix`, limit: 30 },
+      ];
+
+      const scResponses = await Promise.allSettled(
+        searchQueries.map(({ query, limit }) =>
+          axios.get('https://api-v2.soundcloud.com/search/tracks', {
+            params: { q: query, client_id: scClientId, limit },
+            timeout: 6000,
+          })
+        )
+      );
+
+      const rawTracksMap = new Map();
+      scResponses.forEach((res) => {
+        if (res.status === 'fulfilled' && res.value.data?.collection) {
+          res.value.data.collection.forEach((t) => {
+            if (t && t.id && !rawTracksMap.has(t.id)) {
+              rawTracksMap.set(t.id, t);
+            }
+          });
+        }
       });
 
-      const rawTracks = scRes.data?.collection || [];
-      
-      // Parallel resolution of audio stream URLs
+      const rawTracks = Array.from(rawTracksMap.values());
+
+      // Parallel resolution of playable audio stream URLs
       const streamPromises = rawTracks.map(async (track) => {
         const progressive = track.media?.transcodings?.find((tc) => tc.format?.protocol === 'progressive');
-        if (!progressive || !progressive.url) return null;
+        const hls = track.media?.transcodings?.find((tc) => tc.format?.protocol === 'hls');
+        const transcoding = progressive || hls;
+        if (!transcoding || !transcoding.url) return null;
 
         try {
-          const streamRes = await axios.get(progressive.url, {
+          const streamRes = await axios.get(transcoding.url, {
             params: { client_id: scClientId },
             timeout: 4000,
           });
@@ -803,49 +825,54 @@ export const searchSongs = async (req, res) => {
       console.warn('[Full Cloud Search Notice]:', scErr.message);
     }
 
-    // 3. Supplement with iTunes / Apple Music if onlineSongs is under 15
-    if (onlineSongs.length < 15) {
-      try {
-        const itunesRes = await axios.get('https://itunes.apple.com/search', {
-          params: {
-            term: q,
-            media: 'music',
-            entity: 'song',
-            limit: 25,
-          },
-          timeout: 4000,
-        });
+    // 3. Supplement with iTunes / Apple Music for comprehensive coverage
+    try {
+      const itunesRes = await axios.get('https://itunes.apple.com/search', {
+        params: {
+          term: q,
+          media: 'music',
+          entity: 'song',
+          limit: 40,
+        },
+        timeout: 3500,
+      });
 
-        if (itunesRes.data?.results && Array.isArray(itunesRes.data.results)) {
-          const itunesTracks = itunesRes.data.results
-            .filter((t) => t.previewUrl && !onlineSongs.some((os) => os.title?.toLowerCase() === t.trackName?.toLowerCase()))
-            .map((t) => ({
-              _id: `online_${t.trackId}`,
-              title: t.trackName,
-              artist: t.artistName,
-              coverImage: t.artworkUrl100 ? t.artworkUrl100.replace('100x100bb', '600x600bb') : '',
-              audioUrl: t.previewUrl || '',
-              duration: Math.round((t.trackTimeMillis || 210000) / 1000),
-              isOnline: true,
-              isSpotify: false,
-              isLocal: false,
-              lyricsData: [],
-            }));
-          onlineSongs.push(...itunesTracks);
-        }
-      } catch (itunesErr) {
-        console.warn('[iTunes Fallback Warning]:', itunesErr.message);
+      if (itunesRes.data?.results && Array.isArray(itunesRes.data.results)) {
+        const itunesTracks = itunesRes.data.results
+          .filter((t) => t.previewUrl && !onlineSongs.some((os) => os.title?.toLowerCase() === t.trackName?.toLowerCase()))
+          .map((t) => ({
+            _id: `online_${t.trackId}`,
+            title: t.trackName,
+            artist: t.artistName,
+            coverImage: t.artworkUrl100 ? t.artworkUrl100.replace('100x100bb', '600x600bb') : '',
+            audioUrl: t.previewUrl || '',
+            duration: Math.round((t.trackTimeMillis || 210000) / 1000),
+            isOnline: true,
+            isSpotify: false,
+            isLocal: false,
+            lyricsData: [],
+          }));
+        onlineSongs.push(...itunesTracks);
       }
+    } catch (itunesErr) {
+      console.warn('[iTunes Fallback Warning]:', itunesErr.message);
     }
 
-    // Filter out junk karaoke / beat noise
+    // Filter out junk non-music queries & karaoke guides
     const isJunkSong = (title = '') => {
-      return /karaoke|beat\s*chuẩn|tone\s*nam|tone\s*nữ|hát\s*karaoke|nhạc\s*sống\s*karaoke|hướng\s*dẫn/i.test(title);
+      return /karaoke|beat\s*chuẩn|tone\s*nam|tone\s*nữ|hát\s*karaoke|nhạc\s*sống\s*karaoke|hướng\s*dẫn|guitar\s*tab|gameplay|vlog/i.test(title);
     };
 
-    // 4. Merge results with SoundCloud-style metrics and waveforms
+    // 4. Merge results with distinct titles, SoundCloud-style metrics and waveforms
+    const seenTitles = new Set();
     const combinedResults = [...formattedLocalSongs, ...onlineSongs]
-      .filter((song) => !isJunkSong(song.title))
+      .filter((song) => {
+        if (!song || !song.title || isJunkSong(song.title)) return false;
+        const normKey = `${song.title.trim().toLowerCase()}_${(song.artist || '').trim().toLowerCase()}`;
+        if (seenTitles.has(normKey)) return false;
+        seenTitles.add(normKey);
+        return true;
+      })
       .map((song, idx) => {
         // Generate realistic dynamic waveform bars
         const pseudoHash = (song.title || '').split('').reduce((acc, c) => acc + c.charCodeAt(0), 100 + idx * 7);
@@ -879,24 +906,24 @@ export const searchSongs = async (req, res) => {
 };
 
 /**
- * @desc    SoundCloud & YouTube Music Real-Time Autocomplete Suggestions (UTF-8 & No Karaoke/Beat)
+ * @desc    Music-Only Real-Time Autocomplete Suggestions (Song Titles & Song Lyrics Only)
  * @route   GET /api/songs/suggestions
  * @access  Public
  */
 export const getSearchSuggestions = async (req, res) => {
   try {
     const q = req.query.q ? req.query.q.trim() : '';
-    if (!q) {
+    if (!q || q.length < 1) {
       return res.status(200).json({ success: true, data: [] });
     }
 
     const suggestionsSet = new Set();
 
-    // Regex to discard karaoke, backing tracks, tone guides, chords
-    const junkRegex = /karaoke|beat|tone\s*nam|tone\s*nữ|tone|nhạc\s*sống|hát\s*rong|hướng\s*dẫn|guitar\s*tab|instrumental|backing\s*track|hợp\s*âm|cách\s*hát|hát\s*mẫu/i;
+    // Regex to discard non-music queries, vlogs, gameplay, karaoke, chords
+    const nonMusicJunkRegex = /karaoke|beat|tone\s*nam|tone\s*nữ|tone|nhạc\s*sống|hướng\s*dẫn|guitar\s*tab|instrumental|backing\s*track|hợp\s*âm|cách\s*hát|hát\s*mẫu|vlog|gameplay|kinh\s*dị|tập\s*\d+|phim|review|stream|streamer|phỏng\s*vấn|hài\s*kịch|tin\s*tức|reaction|trailer|game/i;
 
     // Helper: Clean up titles (removes "[Official MV]", "(Audio)", extra spaces)
-    const cleanTitle = (raw) => {
+    const cleanSongTitle = (raw) => {
       if (!raw) return '';
       return raw
         .replace(/\[[^\]]*\]|\([^)]*(?:MV|Audio|Video|Lyrics|Lyric|Official|HD|4K|Remix Version)[^)]*\)/gi, '')
@@ -904,54 +931,52 @@ export const getSearchSuggestions = async (req, res) => {
         .trim();
     };
 
-    // 1. YouTube Music Autocomplete with UTF-8 & Chrome engine
+    // 1. Local MongoDB Search by Song Title & Song Lyrics
     try {
-      const ytRes = await axios.get('https://suggestqueries.google.com/complete/search', {
+      const regexPattern = buildVietnameseRegex(q);
+      const localSongs = await Song.find({
+        $or: [
+          { title: { $regex: regexPattern, $options: 'i' } },
+          { 'lyricsData.text': { $regex: regexPattern, $options: 'i' } },
+          { lyricsRaw: { $regex: regexPattern, $options: 'i' } },
+        ],
+      })
+        .select('title lyricsData')
+        .limit(10);
+
+      localSongs.forEach((s) => {
+        if (s.title && !nonMusicJunkRegex.test(s.title)) {
+          const cleaned = cleanSongTitle(s.title);
+          if (cleaned) suggestionsSet.add(cleaned);
+        }
+      });
+    } catch {}
+
+    // 2. Real Music Songs via Apple Music / iTunes (100% verified song titles & lyrics metadata)
+    try {
+      const itunesRes = await axios.get('https://itunes.apple.com/search', {
         params: {
-          client: 'chrome',
-          ds: 'yt',
-          oe: 'utf-8',
-          ie: 'utf-8',
-          q,
+          term: q,
+          media: 'music',
+          entity: 'song',
+          limit: 12,
         },
         timeout: 2500,
       });
 
-      if (Array.isArray(ytRes.data) && Array.isArray(ytRes.data[1])) {
-        ytRes.data[1].forEach((item) => {
-          if (typeof item === 'string' && !junkRegex.test(item)) {
-            const cleaned = cleanTitle(item);
+      if (itunesRes.data?.results) {
+        itunesRes.data.results.forEach((track) => {
+          if (track.trackName && !nonMusicJunkRegex.test(track.trackName)) {
+            const cleaned = cleanSongTitle(track.trackName);
             if (cleaned.length >= 2) {
               suggestionsSet.add(cleaned);
             }
           }
         });
       }
-    } catch (ytErr) {
-      console.warn('[YT Suggestions Notice]:', ytErr.message);
-    }
+    } catch (itErr) {}
 
-    // 2. Local MongoDB Matching Titles
-    try {
-      const regexPattern = buildVietnameseRegex(q);
-      const localSongs = await Song.find({
-        $or: [
-          { title: { $regex: regexPattern, $options: 'i' } },
-          { artist: { $regex: regexPattern, $options: 'i' } },
-        ],
-      })
-        .select('title')
-        .limit(8);
-
-      localSongs.forEach((s) => {
-        if (s.title && !junkRegex.test(s.title)) {
-          const cleaned = cleanTitle(s.title);
-          if (cleaned) suggestionsSet.add(cleaned);
-        }
-      });
-    } catch {}
-
-    // 3. Real SoundCloud Track Titles Matching Query
+    // 3. Real SoundCloud Track Titles (Actual Music Releases)
     try {
       const scClientId = await getSoundCloudClientId();
       const scTracksRes = await axios.get('https://api-v2.soundcloud.com/search/tracks', {
@@ -965,16 +990,18 @@ export const getSearchSuggestions = async (req, res) => {
 
       const tracks = scTracksRes.data?.collection || [];
       tracks.forEach((t) => {
-        if (t.title && !junkRegex.test(t.title)) {
-          const cleaned = cleanTitle(t.title);
-          if (cleaned) suggestionsSet.add(cleaned);
+        if (t.title && !nonMusicJunkRegex.test(t.title)) {
+          const cleaned = cleanSongTitle(t.title);
+          if (cleaned && !nonMusicJunkRegex.test(cleaned)) {
+            suggestionsSet.add(cleaned);
+          }
         }
       });
     } catch (scErr) {
       console.warn('[SC Suggestions Notice]:', scErr.message);
     }
 
-    // Final deduplicated list (up to 10 suggestions)
+    // Final deduplicated list of authentic song titles and lyrics (up to 10 suggestions)
     const resultList = Array.from(suggestionsSet)
       .filter((title) => title && title.toLowerCase() !== q.toLowerCase())
       .slice(0, 10);
