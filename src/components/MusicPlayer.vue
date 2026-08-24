@@ -2074,11 +2074,14 @@ function selectSongFromQueue(index) {
 const isIOS = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
 const isMobileDevice = typeof navigator !== 'undefined' && (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 2));
 
-/**
- * Initialize Web Audio API AudioContext, AnalyserNode, GainNode, 10-Band EQ & StereoPanner
- */
 function setupWebAudio(force = false) {
   if (!audioRef.value) return;
+
+  // On iOS and mobile devices, avoid hijacking the audio element with createMediaElementSource unless custom EQ or 8D audio is used.
+  // This allows the OS native audio pipeline and MediaSession API to keep playing in the background / lock-screen without AudioContext being frozen by the OS.
+  if ((isMobileDevice || isIOS) && !force && !is8DEnabled.value && activeEqPreset.value === 'flat') {
+    return;
+  }
 
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
