@@ -205,6 +205,8 @@
         v-show="currentTab === 'player'"
         ref="playerRef"
         :initial-song-index="selectedSongIndex"
+        :has-search-results="searchResults.length > 0"
+        @back-to-search="currentTab = 'search'"
         @open-auth="openAuthModal('login')"
       />
 

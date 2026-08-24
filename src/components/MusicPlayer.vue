@@ -63,6 +63,14 @@
         <!-- Audio Badges & Top Utilities -->
         <div class="audio-badges-bar">
           <div class="badge-group-left">
+            <button
+              v-if="hasSearchResults"
+              class="top-tool-btn back-search-tool-btn"
+              title="Quay lại danh sách kết quả tìm kiếm vừa tra cứu"
+              @click="$emit('back-to-search')"
+            >
+              <span>🔍 ← Tìm Kiếm</span>
+            </button>
             <span class="audio-badge hi-res-badge">
               <span class="badge-dot" :style="{ backgroundColor: visualizerColor }"></span>
               {{ currentSong ? 'HI-RES AUDIO' : 'STANDBY' }}
@@ -802,16 +810,17 @@
       </div>
     </transition>
 
-    <!-- Hidden HTML5 Audio Element -->
+    <!-- HTML5 Audio Element -->
     <audio
       ref="audioRef"
       :src="audioSourceUrl"
-      crossorigin="anonymous"
-      preload="metadata"
+      preload="auto"
       @timeupdate="onTimeUpdate"
       @loadedmetadata="onLoadedMetadata"
       @ended="onTrackEnded"
       @error="onAudioError"
+      @play="isPlaying = true"
+      @pause="isPlaying = false"
     ></audio>
   </div>
 </template>
@@ -838,9 +847,13 @@ const props = defineProps({
     type: Number,
     default: -1,
   },
+  hasSearchResults: {
+    type: Boolean,
+    default: false,
+  },
 });
 
-const emit = defineEmits(['open-auth']);
+const emit = defineEmits(['open-auth', 'back-to-search']);
 
 // Mobile Player Tab Switch (Vinyl vs Lyrics)
 const mobilePlayerTab = ref('vinyl');
@@ -878,7 +891,12 @@ const isAddToPlaylistModalOpen = ref(false);
 const songToAddToPlaylist = ref(null);
 
 const isCurrentSongFavorite = computed(() => {
-  return !!(currentSong.value && favoriteSongIds.value.has(currentSong.value._id));
+  if (!currentSong.value) return false;
+  const song = currentSong.value;
+  const id = song._id || song.id;
+  if (id && favoriteSongIds.value.has(String(id))) return true;
+  if (song.title && favoriteSongsList.value.some((s) => s.title && s.title === song.title)) return true;
+  return false;
 });
 
 const isCurrentSongOffline = computed(() => {
@@ -887,8 +905,13 @@ const isCurrentSongOffline = computed(() => {
   return !!(id && savedOfflineIds.value.has(String(id)));
 });
 
-function isSongInFavorites(songId) {
-  return !!(songId && favoriteSongIds.value.has(songId));
+function isSongInFavorites(song) {
+  if (!song) return false;
+  const id = typeof song === 'object' ? (song._id || song.id) : song;
+  const title = typeof song === 'object' ? song.title : null;
+  if (id && favoriteSongIds.value.has(String(id))) return true;
+  if (title && favoriteSongsList.value.some((s) => s.title && s.title === title)) return true;
+  return false;
 }
 
 // Reactive States
@@ -1796,11 +1819,21 @@ function toggle8D() {
  * Favorites & Custom Playlists Handlers
  */
 async function fetchFavorites() {
-  if (!currentUser.value) {
-    favoriteSongIds.value = new Set();
-    favoriteSongsList.value = [];
-    return;
-  }
+  // 1. Instant load from localStorage so favorites appear with zero delay
+  try {
+    const local = localStorage.getItem('auramusic_local_favorites');
+    if (local) {
+      const parsed = JSON.parse(local);
+      if (Array.isArray(parsed)) {
+        favoriteSongsList.value = parsed;
+        favoriteSongIds.value = new Set(parsed.map((s) => String(s._id || s.id)));
+      }
+    }
+  } catch (e) {}
+
+  if (!currentUser.value) return;
+
+  // 2. Sync from server if logged in
   try {
     const res = await fetch(`${API_BASE_URL}/api/auth/favorites`, {
       headers: getAuthHeaders(),
@@ -1808,7 +1841,10 @@ async function fetchFavorites() {
     const result = await res.json();
     if (result.success && Array.isArray(result.data)) {
       favoriteSongsList.value = result.data;
-      favoriteSongIds.value = new Set(result.data.map((s) => s._id));
+      favoriteSongIds.value = new Set(result.data.map((s) => String(s._id || s.id)));
+      try {
+        localStorage.setItem('auramusic_local_favorites', JSON.stringify(result.data));
+      } catch (e) {}
     }
   } catch (err) {
     console.warn('[FetchFavorites Error]:', err);
@@ -1816,29 +1852,73 @@ async function fetchFavorites() {
 }
 
 async function handleToggleFavorite(song) {
-  if (!ensureAuth()) return;
-  if (!song || !song._id) return;
+  if (!song) return;
 
-  try {
-    const res = await fetch(`${API_BASE_URL}/api/auth/favorites/${song._id}`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-    });
-    const result = await res.json();
-    if (result.success) {
-      if (result.isFavorite) {
-        favoriteSongIds.value.add(song._id);
-        if (!favoriteSongsList.value.some((s) => s._id === song._id)) {
-          favoriteSongsList.value.push(song);
-        }
-      } else {
-        favoriteSongIds.value.delete(song._id);
-        favoriteSongsList.value = favoriteSongsList.value.filter((s) => s._id !== song._id);
-      }
-      showRecommendationToast(result.message);
+  const songId = song._id || song.id || `local_${Date.now()}`;
+  const key = String(songId);
+  const isFav = isCurrentSongFavorite.value || favoriteSongIds.value.has(key) || favoriteSongsList.value.some((s) => s.title === song.title);
+
+  if (isFav) {
+    favoriteSongIds.value.delete(key);
+    if (song._id) favoriteSongIds.value.delete(String(song._id));
+    if (song.id) favoriteSongIds.value.delete(String(song.id));
+    favoriteSongsList.value = favoriteSongsList.value.filter(
+      (s) => (s._id && String(s._id) !== key) && (s.id && String(s.id) !== key) && (s.title !== song.title)
+    );
+    showToast('Đã xóa khỏi danh sách Yêu Thích 💔', 'info');
+  } else {
+    favoriteSongIds.value.add(key);
+    if (song._id) favoriteSongIds.value.add(String(song._id));
+    if (!favoriteSongsList.value.some((s) => s.title === song.title)) {
+      favoriteSongsList.value.unshift({ ...song, _id: song._id || key });
     }
-  } catch (err) {
-    console.error('[ToggleFavorite Error]:', err);
+    showToast('Đã thêm vào danh sách Yêu Thích ❤️', 'success');
+  }
+
+  // Always save to localStorage so favorites persist across sessions
+  try {
+    localStorage.setItem('auramusic_local_favorites', JSON.stringify(favoriteSongsList.value));
+  } catch (e) {}
+
+  // If user is logged in, sync with backend API
+  if (currentUser.value) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/favorites/${song._id || 'temp_id'}`, {
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: song.title,
+          artist: song.artist,
+          coverImage: song.coverImage,
+          audioUrl: song.audioUrl,
+          duration: song.duration,
+          genre: song.genre,
+          isRemix: song.isRemix,
+        }),
+      });
+      const result = await res.json();
+      if (result.success && Array.isArray(result.data)) {
+        favoriteSongsList.value = result.data;
+        favoriteSongIds.value = new Set(result.data.map((s) => String(s._id || s.id)));
+        try {
+          localStorage.setItem('auramusic_local_favorites', JSON.stringify(result.data));
+        } catch (e) {}
+      }
+    } catch (err) {
+      console.warn('[ToggleFavorite API Notice]:', err);
+    }
+  }
+
+  // Notify other components
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('auramusic:favorites-updated', {
+        detail: { isFavorite: !isFav, song, data: favoriteSongsList.value },
+      })
+    );
   }
 }
 
@@ -2155,11 +2235,6 @@ async function togglePlay() {
   if (!currentSong.value || !audioRef.value) return;
 
   try {
-    setupWebAudio();
-    if (audioContext && audioContext.state === 'suspended') {
-      await audioContext.resume();
-    }
-
     if (isPlaying.value) {
       audioRef.value.pause();
       isPlaying.value = false;
@@ -2169,6 +2244,12 @@ async function togglePlay() {
         await playPromise;
       }
       isPlaying.value = true;
+      try {
+        setupWebAudio();
+        if (audioContext && audioContext.state === 'suspended') {
+          audioContext.resume().catch(() => {});
+        }
+      } catch (e) {}
     }
   } catch (err) {
     if (err.name !== 'AbortError') {
@@ -2368,12 +2449,29 @@ async function onTrackEnded() {
   currentTime.value = 0;
 
   if (currentSong.value) {
-    recordPlayedTitle(currentSong.value.title, currentSong.value._id);
+    recordPlayedTitle(currentSong.value.title, currentSong.value._id || currentSong.value.id);
   }
 
-  // 1. If more tracks remain ahead in queue, advance directly
-  if (currentSongIndex.value < songList.value.length - 1) {
-    currentSongIndex.value++;
+  const curCore = getCoreSongTitle(currentSong.value?.title);
+  const curId = String(currentSong.value?._id || currentSong.value?.id || '');
+
+  // 1. Advance to first distinct unplayed track ahead in queue
+  let nextIdx = -1;
+  for (let i = currentSongIndex.value + 1; i < songList.value.length; i++) {
+    const candidate = songList.value[i];
+    if (!candidate || isJunkOrPlaceholderSong(candidate)) continue;
+    const candId = String(candidate._id || candidate.id || '');
+    const candCore = getCoreSongTitle(candidate.title);
+
+    if (candCore === curCore || (candId && curId && candId === curId)) {
+      continue;
+    }
+    nextIdx = i;
+    break;
+  }
+
+  if (nextIdx !== -1) {
+    currentSongIndex.value = nextIdx;
     await nextTick();
     if (audioRef.value) {
       audioRef.value.load();
@@ -2381,7 +2479,6 @@ async function onTrackEnded() {
     }
     autoFetchLyricsForCurrentSong();
 
-    // Prefetch next batch if nearing the end
     if (songList.value.length - currentSongIndex.value <= 3) {
       prefetchUpcomingTracks();
     }
@@ -2399,7 +2496,7 @@ async function onTrackEnded() {
       await togglePlay();
     }
     autoFetchLyricsForCurrentSong();
-    showRecommendationToast(`Đang phát tiếp bài mới: ${nextSong.title} 🎶`);
+    showRecommendationToast(`Đang phát tiếp: ${nextSong.title} 🎶`);
     prefetchUpcomingTracks();
   }
 }
@@ -2467,7 +2564,7 @@ async function switchSong(direction) {
   if (!ensureAuth()) return;
   if (!currentSong.value) return;
 
-  recordPlayedTitle(currentSong.value.title, currentSong.value._id);
+  recordPlayedTitle(currentSong.value.title, currentSong.value._id || currentSong.value.id);
 
   // PREVIOUS BUTTON (direction < 0)
   if (direction < 0) {
@@ -2494,9 +2591,27 @@ async function switchSong(direction) {
 
   // NEXT BUTTON (direction > 0)
   if (direction > 0) {
-    // A. If next track exists in current queue, advance to it
-    if (currentSongIndex.value < songList.value.length - 1) {
-      currentSongIndex.value++;
+    const curCore = getCoreSongTitle(currentSong.value?.title);
+    const curId = String(currentSong.value?._id || currentSong.value?.id || '');
+
+    // 1. Look ahead in queue for the first distinct, unplayed track
+    let nextIdx = -1;
+    for (let i = currentSongIndex.value + 1; i < songList.value.length; i++) {
+      const candidate = songList.value[i];
+      if (!candidate || isJunkOrPlaceholderSong(candidate)) continue;
+      const candId = String(candidate._id || candidate.id || '');
+      const candCore = getCoreSongTitle(candidate.title);
+
+      // Skip duplicate of current song or exact ID match
+      if (candCore === curCore || (candId && curId && candId === curId)) {
+        continue;
+      }
+      nextIdx = i;
+      break;
+    }
+
+    if (nextIdx !== -1) {
+      currentSongIndex.value = nextIdx;
       currentTime.value = 0;
       isPlaying.value = false;
 
@@ -2514,7 +2629,7 @@ async function switchSong(direction) {
       return;
     }
 
-    // B. Reached the end of queue: DO NOT LOOP! Fetch fresh unplayed track & append to queue
+    // 2. If no distinct track ahead in queue, fetch fresh distinct track from SoundCloud
     const nextSong = await getNextSmartGenreSong();
     if (nextSong) {
       songList.value.push(nextSong);
@@ -2528,7 +2643,7 @@ async function switchSong(direction) {
         await togglePlay();
       }
       autoFetchLyricsForCurrentSong();
-      showRecommendationToast(`Đang phát tiếp bài mới: ${nextSong.title} 🎶`);
+      showRecommendationToast(`Đang phát tiếp: ${nextSong.title} 🎶`);
       prefetchUpcomingTracks();
       return;
     }
@@ -2771,15 +2886,17 @@ async function playSong(song, newQueue = null, options = {}) {
   if (audioRef.value) {
     audioRef.value.volume = volume.value;
     try {
-      setupWebAudio();
-      if (audioContext && audioContext.state === 'suspended') {
-        await audioContext.resume();
-      }
       const playPromise = audioRef.value.play();
       if (playPromise !== undefined) {
         await playPromise;
       }
       isPlaying.value = true;
+      try {
+        setupWebAudio();
+        if (audioContext && audioContext.state === 'suspended') {
+          audioContext.resume().catch(() => {});
+        }
+      } catch (e) {}
     } catch (err) {
       if (err.name !== 'AbortError') {
         console.warn('Playback error:', err.message);
@@ -2946,6 +3063,31 @@ defineExpose({
   align-items: center;
   gap: 0.6rem;
   margin-bottom: 1.2rem;
+}
+
+.back-search-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(0, 242, 254, 0.15);
+  border: 1px solid rgba(0, 242, 254, 0.4);
+  color: #00f2fe;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 10px rgba(0, 242, 254, 0.2);
+}
+
+.back-search-tool-btn:hover {
+  background: rgba(0, 242, 254, 0.3);
+  border-color: #00f2fe;
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 242, 254, 0.4);
 }
 
 .audio-badge {
