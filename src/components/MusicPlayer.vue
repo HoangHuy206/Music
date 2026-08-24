@@ -931,6 +931,7 @@ const lyricsContainerRef = ref(null);
 let audioContext = null;
 let analyserNode = null;
 let sourceNode = null;
+let gainNode = null;
 let animationFrameId = null;
 let dataArray = null;
 
@@ -956,6 +957,9 @@ const initialVolume = (() => {
 const volume = ref(initialVolume);
 
 watch(volume, (newVol) => {
+  if (gainNode && audioContext) {
+    gainNode.gain.setValueAtTime(newVol, audioContext.currentTime || 0);
+  }
   if (audioRef.value) {
     audioRef.value.volume = newVol;
   }
@@ -1964,14 +1968,9 @@ const isIOS = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod/i.test(navi
 const isMobileDevice = typeof navigator !== 'undefined' && (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 2));
 
 /**
- * Initialize Web Audio API AudioContext, AnalyserNode, 10-Band EQ & StereoPanner
+ * Initialize Web Audio API AudioContext, AnalyserNode, GainNode, 10-Band EQ & StereoPanner
  */
-function setupWebAudio(force = false) {
-  // On iOS / Mobile devices, Web Audio API (createMediaElementSource) is muted/suspended by Apple WebKit when the screen locks or tab goes to background.
-  // We keep the native audio output clean on mobile for 100% reliable background audio on lock screen.
-  if ((isIOS || isMobileDevice) && !force && !is8DEnabled.value && !hasCustomEq.value) {
-    return;
-  }
+function setupWebAudio() {
   if (audioContext && sourceNode) return;
   if (!audioRef.value) return;
 
@@ -1983,10 +1982,15 @@ function setupWebAudio(force = false) {
 
     if (!analyserNode) {
       analyserNode = audioContext.createAnalyser();
-      analyserNode.fftSize = 128; // 64 frequency bins
-      analyserNode.smoothingTimeConstant = 0.8;
+      analyserNode.fftSize = 256; // 128 frequency bins for ultra-responsive beat bouncing
+      analyserNode.smoothingTimeConstant = 0.7;
       const bufferLength = analyserNode.frequencyBinCount;
       dataArray = new Uint8Array(bufferLength);
+    }
+
+    if (!gainNode) {
+      gainNode = audioContext.createGain();
+      gainNode.gain.setValueAtTime(volume.value, audioContext.currentTime || 0);
     }
 
     if (!sourceNode && audioRef.value) {
@@ -2014,7 +2018,7 @@ function setupWebAudio(force = false) {
         pannerNode.pan.value = 0;
       }
 
-      // Connect graph: source -> eq[0] -> ... -> eq[9] -> panner -> analyser -> destination
+      // Connect graph: source -> eq[0] -> ... -> eq[9] -> panner -> gainNode -> analyser -> destination
       let currentNode = sourceNode;
       for (const node of eqNodes) {
         currentNode.connect(node);
@@ -2026,11 +2030,12 @@ function setupWebAudio(force = false) {
         currentNode = pannerNode;
       }
 
-      currentNode.connect(analyserNode);
+      currentNode.connect(gainNode);
+      gainNode.connect(analyserNode);
       analyserNode.connect(audioContext.destination);
     }
   } catch (err) {
-    console.warn('[Web Audio API] Setup warning:', err);
+    console.warn('[Web Audio API] Setup notice:', err);
   }
 }
 
@@ -2070,42 +2075,28 @@ function startVisualizerLoop() {
       pannerNode.pan.value = 0;
     }
 
-    if (analyserNode && sourceNode && isPlaying.value && dataArray) {
+    if (analyserNode && isPlaying.value && dataArray) {
       analyserNode.getByteFrequencyData(dataArray);
 
-      // Calculate Bass Energy (bins 0-5)
+      // Bass Energy (bins 0-7: Kick & Bassline)
       let bassSum = 0;
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < 8; i++) {
         bassSum += dataArray[i];
       }
-      bassEnergy.value = Math.min(1, bassSum / (6 * 220));
+      bassEnergy.value = Math.min(1, bassSum / (8 * 180));
 
-      // Calculate Vocal Spectrum Energy (bins 3-14: ~500Hz - 4800Hz)
+      // Vocal / Melodic Energy (bins 8-24)
       let vocalSum = 0;
-      for (let i = 3; i < 15; i++) {
+      for (let i = 8; i < 24; i++) {
         vocalSum += dataArray[i];
       }
-      vocalEnergy.value = vocalSum / (12 * 255);
-    } else if (isPlaying.value) {
-      // Smooth simulated rhythmic energy for mobile/native background audio playback
-      const t = Date.now() * 0.005;
-      const beat = Math.sin(t * 2.5) * 0.5 + 0.5;
-      bassEnergy.value = 0.2 + beat * 0.45;
-      vocalEnergy.value = 0.3 + Math.cos(t * 3.8) * 0.3;
-
-      if (!dataArray) {
-        dataArray = new Uint8Array(64);
-      }
-      for (let i = 0; i < dataArray.length; i++) {
-        const wave = Math.sin(t * 3 + i * 0.35) * Math.cos(t * 1.5 - i * 0.2);
-        dataArray[i] = Math.max(30, Math.min(255, Math.floor(110 + wave * 90 + beat * 50)));
-      }
+      vocalEnergy.value = Math.min(1, vocalSum / (16 * 200));
     } else {
-      bassEnergy.value = Math.max(0, bassEnergy.value * 0.88 - 0.02);
+      bassEnergy.value = Math.max(0, bassEnergy.value * 0.85 - 0.02);
       vocalEnergy.value = Math.max(0, vocalEnergy.value * 0.85);
       if (dataArray) {
         for (let i = 0; i < dataArray.length; i++) {
-          dataArray[i] = Math.max(0, dataArray[i] * 0.9 - 1);
+          dataArray[i] = Math.max(0, dataArray[i] * 0.85 - 2);
         }
       }
     }
@@ -2115,15 +2106,15 @@ function startVisualizerLoop() {
     const gap = 3;
     const totalBarWidth = (width - (numBars - 1) * gap) / numBars;
     const barWidth = Math.max(2, totalBarWidth);
-    const step = dataArray ? Math.max(1, Math.floor(dataArray.length / numBars)) : 1;
+    const step = dataArray ? Math.max(1, Math.floor((dataArray.length * 0.7) / numBars)) : 1;
 
     for (let i = 0; i < numBars; i++) {
       let val = 0;
-      if (dataArray) {
+      if (dataArray && isPlaying.value) {
         val = dataArray[i * step] || 0;
       }
 
-      const percent = val / 255;
+      const percent = Math.min(1, Math.max(0.04, val / 255));
       const minHeight = 3;
       const barHeight = Math.max(minHeight, percent * (height - 4));
       const x = i * (barWidth + gap);
@@ -2142,7 +2133,7 @@ function startVisualizerLoop() {
       ctx.fill();
 
       // Glowing highlight top tip
-      if (barHeight > 6 && isPlaying.value) {
+      if (barHeight > 5 && isPlaying.value) {
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
         ctx.roundRect(x + 0.5, y, barWidth - 1, 1.5, [1, 1, 0, 0]);
@@ -2461,6 +2452,9 @@ function seekToTimestamp(timestamp) {
  * Volume adjust
  */
 function updateVolume() {
+  if (gainNode && audioContext) {
+    gainNode.gain.setValueAtTime(volume.value, audioContext.currentTime || 0);
+  }
   if (audioRef.value) {
     audioRef.value.volume = volume.value;
   }
@@ -4554,23 +4548,23 @@ defineExpose({
     max-width: 100% !important;
     border-right: none !important;
     border-bottom: none !important;
-    padding: 0.75rem 1rem 1.75rem !important;
+    padding: 0.5rem 0.85rem 2.2rem !important;
     box-sizing: border-box !important;
     align-items: center !important;
     text-align: center !important;
   }
 
   .vinyl-wrapper {
-    width: 190px !important;
-    height: 190px !important;
-    min-width: 190px !important;
-    min-height: 190px !important;
-    max-width: 190px !important;
-    max-height: 190px !important;
+    width: 165px !important;
+    height: 165px !important;
+    min-width: 165px !important;
+    min-height: 165px !important;
+    max-width: 165px !important;
+    max-height: 165px !important;
     aspect-ratio: 1 / 1 !important;
     border-radius: 50% !important;
     flex-shrink: 0 !important;
-    margin: 0.5rem auto 1.1rem auto !important;
+    margin: 0.2rem auto 0.55rem auto !important;
     position: relative !important;
     display: flex !important;
     align-items: center !important;
@@ -4584,8 +4578,8 @@ defineExpose({
     flex-shrink: 0 !important;
   }
   .vinyl-center {
-    width: 90px !important;
-    height: 90px !important;
+    width: 78px !important;
+    height: 78px !important;
     aspect-ratio: 1 / 1 !important;
     border-radius: 50% !important;
     flex-shrink: 0 !important;
@@ -4604,7 +4598,7 @@ defineExpose({
   .track-meta-block {
     width: 100% !important;
     max-width: 100% !important;
-    margin-bottom: 1rem !important;
+    margin-bottom: 0.5rem !important;
     text-align: center !important;
     align-items: center !important;
   }
@@ -4613,7 +4607,7 @@ defineExpose({
     justify-content: center !important;
   }
   .song-title {
-    font-size: 1.25rem !important;
+    font-size: 1.2rem !important;
     font-weight: 800 !important;
     max-width: 100% !important;
     white-space: nowrap !important;
@@ -4622,17 +4616,17 @@ defineExpose({
     text-align: center !important;
   }
   .song-artist {
-    font-size: 0.88rem !important;
+    font-size: 0.84rem !important;
     color: #94a3b8 !important;
     text-align: center !important;
-    margin-top: 0.2rem !important;
+    margin-top: 0.15rem !important;
   }
 
   .timeline-container {
     width: 100% !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
-    margin-bottom: 0.4rem !important;
+    margin-bottom: 0.35rem !important;
   }
   .timeline-bar-wrap {
     width: 100% !important;
@@ -4650,19 +4644,19 @@ defineExpose({
     justify-content: center !important;
     align-items: center !important;
     gap: 1.1rem !important;
-    margin: 0.5rem 0 0 !important;
+    margin: 0.35rem 0 0 !important;
   }
   .play-pause-btn {
-    width: 58px !important;
-    height: 58px !important;
+    width: 56px !important;
+    height: 56px !important;
   }
   .control-btn.nav-btn {
-    width: 44px !important;
-    height: 44px !important;
+    width: 42px !important;
+    height: 42px !important;
   }
   .control-action-btn {
-    width: 40px !important;
-    height: 40px !important;
+    width: 38px !important;
+    height: 38px !important;
   }
 
   /* Mobile Volume Slider & Mood Bar */
@@ -4671,9 +4665,9 @@ defineExpose({
     flex-direction: column !important;
     width: 100% !important;
     max-width: 340px !important;
-    margin: 0.75rem auto 0.4rem auto !important;
+    margin: 0.45rem auto 0.6rem auto !important;
     align-items: center !important;
-    gap: 0.65rem !important;
+    gap: 0.45rem !important;
     box-sizing: border-box !important;
   }
   .volume-slider-group {
@@ -4682,7 +4676,7 @@ defineExpose({
     align-items: center !important;
     gap: 0.65rem !important;
     background: rgba(255, 255, 255, 0.05) !important;
-    padding: 0.4rem 0.85rem !important;
+    padding: 0.35rem 0.8rem !important;
     border-radius: 14px !important;
     border: 1px solid rgba(255, 255, 255, 0.08) !important;
     box-sizing: border-box !important;
@@ -4695,9 +4689,10 @@ defineExpose({
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    gap: 0.45rem !important;
+    gap: 0.4rem !important;
     width: 100% !important;
     flex-wrap: wrap !important;
+    padding: 0.2rem 0.2rem 0.4rem 0.2rem !important;
   }
   .theme-dot-btn {
     width: 22px !important;
@@ -4715,11 +4710,11 @@ defineExpose({
     box-shadow: 0 0 10px currentColor !important;
   }
   .theme-auto-btn {
-    padding: 0.28rem 0.75rem !important;
-    font-size: 0.76rem !important;
+    padding: 0.25rem 0.7rem !important;
+    font-size: 0.74rem !important;
     font-weight: 700 !important;
     border-radius: 999px !important;
-    height: 26px !important;
+    height: 25px !important;
     display: inline-flex !important;
     align-items: center !important;
     gap: 0.3rem !important;
@@ -4739,15 +4734,16 @@ defineExpose({
   .visualizer-container {
     display: flex !important;
     width: 100% !important;
-    max-width: 340px !important;
-    height: 36px !important;
-    margin: 0.4rem auto 0.2rem auto !important;
-    background: rgba(0, 0, 0, 0.4) !important;
-    border: 1px solid rgba(255, 255, 255, 0.12) !important;
-    border-radius: 10px !important;
+    max-width: 320px !important;
+    height: 38px !important;
+    margin: 0.3rem auto 0.25rem auto !important;
+    background: rgba(0, 0, 0, 0.45) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    border-radius: 12px !important;
     overflow: hidden !important;
     align-items: center !important;
     justify-content: center !important;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
   }
   .visualizer-canvas {
     width: 100% !important;
