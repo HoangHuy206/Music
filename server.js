@@ -15,6 +15,17 @@ connectDB();
 
 const app = express();
 
+// Trust proxy for Render/Vercel to get real client IP
+app.set('trust proxy', 1);
+
+// IP Logger Middleware - Print every incoming request with real IP
+app.use((req, res, next) => {
+  const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || req.ip;
+  const timestamp = new Date().toLocaleTimeString('vi-VN');
+  console.log(`[${timestamp}] 🌐 IP: ${clientIp} -> ${req.method} ${req.originalUrl}`);
+  next();
+});
+
 // Standard middlewares - CORS first
 app.use(cors());
 app.use(express.json());
