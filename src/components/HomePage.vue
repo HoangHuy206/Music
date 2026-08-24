@@ -789,17 +789,24 @@ async function handleSupportSubmit() {
     return;
   }
 
-  if (!supportForm.value.name || !supportForm.value.email || !supportForm.value.message) {
+  if (!supportForm.value.name?.trim() || !supportForm.value.email?.trim() || !supportForm.value.message?.trim()) {
     showToast('Vui lòng điền đầy đủ Họ tên, Email và Nội dung cần hỗ trợ!', 'warning');
     return;
   }
+
   isSubmittingSupport.value = true;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+
   try {
     const res = await fetch(`${API_BASE_URL}/api/support`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(supportForm.value),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
+
     const data = await res.json();
     if (data.success) {
       showToast('Yêu cầu hỗ trợ đã được gửi thành công đến đội ngũ AuraMusic!', 'success');
@@ -808,7 +815,12 @@ async function handleSupportSubmit() {
       showToast(data.message || 'Không thể gửi phản hồi lúc này.', 'error');
     }
   } catch (err) {
-    showToast('Lỗi kết nối khi gửi yêu cầu hỗ trợ.', 'error');
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      showToast('Hết thời gian chờ phản hồi từ máy chủ. Vui lòng thử lại sau!', 'error');
+    } else {
+      showToast('Lỗi kết nối khi gửi yêu cầu hỗ trợ.', 'error');
+    }
   } finally {
     isSubmittingSupport.value = false;
   }
