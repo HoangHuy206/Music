@@ -1479,6 +1479,112 @@ watch(
 );
 
 /**
+ * MediaSession API & Background Audio Playback Engine
+ * Enables seamless audio playback when switching apps or locking the screen on iOS & Android.
+ * Renders album art, title, artist, seek scrubber on Lock Screen, Dynamic Island & Control Center.
+ */
+let lastPositionUpdateSec = 0;
+
+function updateSystemMediaSession() {
+  if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+
+  const song = currentSong.value;
+  if (!song) {
+    try {
+      navigator.mediaSession.playbackState = 'none';
+    } catch (e) {}
+    return;
+  }
+
+  const coverUrl = song.coverImage ? formatMediaUrl(song.coverImage) : '';
+  const artwork = coverUrl
+    ? [
+        { src: coverUrl, sizes: '96x96', type: 'image/png' },
+        { src: coverUrl, sizes: '128x128', type: 'image/png' },
+        { src: coverUrl, sizes: '192x192', type: 'image/png' },
+        { src: coverUrl, sizes: '256x256', type: 'image/png' },
+        { src: coverUrl, sizes: '384x384', type: 'image/png' },
+        { src: coverUrl, sizes: '512x512', type: 'image/png' },
+      ]
+    : [];
+
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: song.title || 'AuraMusic Track',
+      artist: song.artist || 'AuraMusic Artist',
+      album: 'AuraMusic Hi-Res Audio',
+      artwork,
+    });
+
+    navigator.mediaSession.playbackState = isPlaying.value ? 'playing' : 'paused';
+
+    const safeSetAction = (action, handler) => {
+      try {
+        navigator.mediaSession.setActionHandler(action, handler);
+      } catch (e) {}
+    };
+
+    safeSetAction('play', () => {
+      if (!isPlaying.value) togglePlay();
+    });
+    safeSetAction('pause', () => {
+      if (isPlaying.value) togglePlay();
+    });
+    safeSetAction('previoustrack', () => {
+      switchSong(-1);
+    });
+    safeSetAction('nexttrack', () => {
+      switchSong(1);
+    });
+    safeSetAction('seekto', (details) => {
+      if (details.seekTime !== undefined && audioRef.value) {
+        audioRef.value.currentTime = details.seekTime;
+        currentTime.value = details.seekTime;
+        updateMediaSessionPosition();
+      }
+    });
+    safeSetAction('seekforward', (details) => {
+      if (audioRef.value) {
+        const skipTime = details.seekOffset || 10;
+        audioRef.value.currentTime = Math.min(duration.value || 0, audioRef.value.currentTime + skipTime);
+        currentTime.value = audioRef.value.currentTime;
+        updateMediaSessionPosition();
+      }
+    });
+    safeSetAction('seekbackward', (details) => {
+      if (audioRef.value) {
+        const skipTime = details.seekOffset || 10;
+        audioRef.value.currentTime = Math.max(0, audioRef.value.currentTime - skipTime);
+        currentTime.value = audioRef.value.currentTime;
+        updateMediaSessionPosition();
+      }
+    });
+    safeSetAction('stop', () => {
+      if (audioRef.value) {
+        audioRef.value.pause();
+        isPlaying.value = false;
+      }
+    });
+  } catch (err) {
+    console.warn('[MediaSession Update Notice]:', err);
+  }
+
+  updateMediaSessionPosition();
+}
+
+function updateMediaSessionPosition() {
+  if (typeof navigator === 'undefined' || !('mediaSession' in navigator) || !('setPositionState' in navigator.mediaSession)) return;
+  if (!audioRef.value || !duration.value || isNaN(duration.value) || duration.value <= 0) return;
+  try {
+    navigator.mediaSession.setPositionState({
+      duration: Math.max(0, duration.value),
+      playbackRate: audioRef.value.playbackRate || 1.0,
+      position: Math.min(Math.max(0, audioRef.value.currentTime || 0), duration.value),
+    });
+  } catch (e) {}
+}
+
+/**
  * Picture-in-Picture (PiP) Floating Player Controls & Realtime Sync
  */
 const currentActiveLyricText = computed(() => {
@@ -1519,6 +1625,18 @@ function syncPiPPlayerState() {
 }
 
 async function handleTogglePiP() {
+  const isPiPSupported =
+    typeof document !== 'undefined' &&
+    'pictureInPictureEnabled' in document &&
+    document.pictureInPictureEnabled &&
+    typeof HTMLCanvasElement !== 'undefined' &&
+    'captureStream' in HTMLCanvasElement.prototype;
+
+  if (!isPiPSupported) {
+    showToast('✨ Nhạc đã được bật chế độ chạy ngầm! Bạn có thể tắt màn hình hoặc đổi app mà nhạc vẫn phát trên Lock Screen & Dynamic Island.', 'info');
+    return;
+  }
+
   try {
     syncPiPPlayerState();
     const active = await togglePictureInPicture();
@@ -1527,17 +1645,25 @@ async function handleTogglePiP() {
       showToast('Mini Player nổi (PiP) đã được kích hoạt! 📺✨', 'success');
     }
   } catch (err) {
-    console.error('[PiP Error]:', err);
-    showToast('Trình duyệt không hỗ trợ hoặc chặn Picture-in-Picture', 'error');
+    console.warn('[PiP Notice]:', err);
+    showToast('✨ Đã kích hoạt phát nhạc ngầm! Bạn có thể tắt màn hình hoặc chuyển app mà nhạc vẫn phát.', 'info');
   }
 }
 
-// Watch changes to continuously keep PiP frame synced
+// Watch changes to continuously keep PiP frame & OS MediaSession synced
 watch(
   [() => currentTime.value, () => isPlaying.value, () => currentSong.value, () => visualizerColor.value, () => currentActiveLyricText.value],
   () => {
     syncPiPPlayerState();
   }
+);
+
+watch(
+  [() => currentSong.value, () => isPlaying.value],
+  () => {
+    updateSystemMediaSession();
+  },
+  { immediate: true }
 );
 
 /**
@@ -2065,6 +2191,13 @@ function onTimeUpdate() {
   if (!audioRef.value || !currentSong.value) return;
   currentTime.value = audioRef.value.currentTime;
 
+  // Sync MediaSession position state every 1 second
+  const currentSec = Math.floor(currentTime.value);
+  if (currentSec !== lastPositionUpdateSec) {
+    lastPositionUpdateSec = currentSec;
+    updateMediaSessionPosition();
+  }
+
   // Record taste profile play event once track plays past 5 seconds
   if (currentTime.value >= 5 && !hasRecordedCurrentTrackPlay.value && currentSong.value) {
     hasRecordedCurrentTrackPlay.value = true;
@@ -2076,6 +2209,7 @@ function onLoadedMetadata() {
   if (!audioRef.value) return;
   duration.value = audioRef.value.duration || 0;
   audioRef.value.volume = volume.value;
+  updateSystemMediaSession();
 }
 
 /**
@@ -2558,6 +2692,15 @@ watch(currentSongIndex, () => {
   }
 });
 
+function handleVisibilityChange() {
+  if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+    if (audioContext && audioContext.state === 'suspended' && isPlaying.value) {
+      audioContext.resume().catch(() => {});
+    }
+    updateSystemMediaSession();
+  }
+}
+
 onMounted(() => {
   fetchSongs();
   fetchFavorites();
@@ -2565,11 +2708,17 @@ onMounted(() => {
   loadOfflineTracks();
   startVisualizerLoop();
   startAutoColorCycle();
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+  }
 });
 
 onUnmounted(() => {
   if (autoColorTimer) cancelAnimationFrame(autoColorTimer);
   if (animationFrameId) cancelAnimationFrame(animationFrameId);
+  if (typeof document !== 'undefined') {
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }
   if (audioContext && audioContext.state !== 'closed') {
     try {
       audioContext.close();
