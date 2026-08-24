@@ -1530,6 +1530,7 @@ function updateSystemMediaSession() {
     safeSetAction('pause', () => {
       if (isPlaying.value) togglePlay();
     });
+    // 🎧 Track Navigation (Replaces 10s seek buttons with Previous/Next track controls on iOS & Android lock screens)
     safeSetAction('previoustrack', () => {
       switchSong(-1);
     });
@@ -1543,22 +1544,9 @@ function updateSystemMediaSession() {
         updateMediaSessionPosition();
       }
     });
-    safeSetAction('seekforward', (details) => {
-      if (audioRef.value) {
-        const skipTime = details.seekOffset || 10;
-        audioRef.value.currentTime = Math.min(duration.value || 0, audioRef.value.currentTime + skipTime);
-        currentTime.value = audioRef.value.currentTime;
-        updateMediaSessionPosition();
-      }
-    });
-    safeSetAction('seekbackward', (details) => {
-      if (audioRef.value) {
-        const skipTime = details.seekOffset || 10;
-        audioRef.value.currentTime = Math.max(0, audioRef.value.currentTime - skipTime);
-        currentTime.value = audioRef.value.currentTime;
-        updateMediaSessionPosition();
-      }
-    });
+    // Disable seekforward and seekbackward so OS lock screen renders Previous/Next track buttons instead of 10s skips
+    safeSetAction('seekforward', null);
+    safeSetAction('seekbackward', null);
     safeSetAction('stop', () => {
       if (audioRef.value) {
         audioRef.value.pause();
