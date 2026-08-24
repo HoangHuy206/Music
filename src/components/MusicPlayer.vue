@@ -2075,6 +2075,12 @@ const isMobileDevice = typeof navigator !== 'undefined' && (/Android|webOS|iPhon
 function setupWebAudio(force = false) {
   if (!audioRef.value) return;
 
+  // On Mobile & iOS devices, DO NOT attach createMediaElementSource unless custom EQ or 8D is active.
+  // This allows Apple AVPlayer & Android MediaPlayer to play 100% natively in the background and lock screen without WebAudio freeze.
+  if ((isMobileDevice || isIOS) && !force && !is8DEnabled.value && activeEqPreset.value === 'flat' && !hasCustomEq.value) {
+    return;
+  }
+
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!audioContext) {
@@ -2211,6 +2217,14 @@ function startVisualizerLoop() {
     ctx.beginPath();
     const highlightTops = [];
 
+    // Genre-tailored rhythm tempo calculation for mobile sync
+    const isRemix = isSongRemix(currentSong.value);
+    const bpm = isRemix ? 134 : 78;
+    const beatSec = 60 / bpm;
+    const audioTime = (audioRef.value && !isNaN(audioRef.value.currentTime)) ? audioRef.value.currentTime : (nowTime * 0.28);
+    const beatPhase = (audioTime % beatSec) / beatSec;
+    const kickPulse = Math.pow(Math.max(0, 1 - beatPhase * 1.5), 2) * (isRemix ? 0.65 : 0.35);
+
     for (let i = 0; i < numBars; i++) {
       let targetVal = 0;
       if (hasRealAudioData) {
@@ -2224,13 +2238,24 @@ function startVisualizerLoop() {
         }
         targetVal = rawVal;
       } else if (isPlaying.value) {
-        // Fluid organic multi-harmonic wave curve
-        const wave1 = Math.sin(nowTime * 2.4 + i * 0.32) * 0.38;
-        const wave2 = Math.cos(nowTime * 3.8 + i * 0.48) * 0.28;
-        const wave3 = Math.sin(nowTime * 1.2 + i * 0.15) * 0.18;
-        const centerBell = Math.sin((i / (numBars - 1)) * Math.PI) * 0.25;
-        const combined = Math.max(0.08, Math.min(1.0, 0.35 + wave1 + wave2 + wave3 + centerBell));
-        targetVal = combined * 245;
+        // High-precision rhythmic beat curve for mobile
+        const isBassBar = i < 8;
+        const isMidBar = i >= 8 && i < 22;
+
+        let baseEnergy = 0;
+        if (isBassBar) {
+          const bassMod = Math.sin(audioTime * 14 + i * 0.3) * 0.15;
+          baseEnergy = 0.28 + kickPulse + bassMod;
+        } else if (isMidBar) {
+          const midMod = Math.sin(audioTime * 18 + i * 0.45) * 0.22 + Math.cos(audioTime * 9 + i * 0.25) * 0.15;
+          baseEnergy = 0.22 + kickPulse * 0.4 + midMod;
+        } else {
+          const trebleMod = Math.sin(audioTime * 24 + i * 0.6) * 0.22 + Math.cos(audioTime * 32) * 0.12;
+          baseEnergy = 0.18 + kickPulse * 0.25 + trebleMod;
+        }
+
+        const clamped = Math.max(0.06, Math.min(0.98, baseEnergy));
+        targetVal = clamped * 250;
       }
 
       // Smooth temporal interpolation (LERP) for liquid 60FPS fluid motion
