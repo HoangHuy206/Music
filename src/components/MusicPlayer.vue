@@ -14,9 +14,9 @@
     <!-- Background Ambient Glow dynamically reactive to song beat and visualizer color -->
     <div
       class="ambient-glow"
+      :class="{ 'is-playing-glow': isPlaying }"
       :style="{
-        background: `radial-gradient(circle at 40% 40%, ${visualizerColor}${Math.floor(25 + bassEnergy * 35).toString(16)} 0%, rgba(10, 12, 18, 0.95) 75%)`,
-        transform: `scale(${1 + bassEnergy * 0.08})`,
+        background: `radial-gradient(circle at 40% 40%, ${visualizerColor}33 0%, rgba(10, 12, 18, 0.95) 75%)`,
       }"
     ></div>
 
@@ -119,8 +119,7 @@
             :class="{ 'halo-pulsing': isPlaying }"
             :style="{
               borderColor: visualizerColor,
-              boxShadow: isPlaying ? `0 0 ${40 + bassEnergy * 45}px ${visualizerColor}55` : 'none',
-              transform: `scale(${1 + bassEnergy * 0.04})`,
+              boxShadow: isPlaying ? `0 0 50px ${visualizerColor}55` : 'none',
             }"
           ></div>
 
@@ -273,8 +272,7 @@
               backgroundColor: currentSong ? visualizerColor : '#1e293b',
               opacity: currentSong ? 1 : 0.45,
               cursor: currentSong ? 'pointer' : 'not-allowed',
-              boxShadow: isPlaying ? `0 0 ${20 + bassEnergy * 25}px ${getColorWithAlpha(visualizerColor, 0.65)}` : `0 8px 25px rgba(0,0,0,0.5)`,
-              transform: currentSong ? `scale(${1 + bassEnergy * 0.05})` : 'none'
+              boxShadow: isPlaying ? `0 0 25px ${getColorWithAlpha(visualizerColor, 0.65)}` : `0 8px 25px rgba(0,0,0,0.5)`,
             }"
             :title="!currentSong ? 'Chưa chọn bài hát' : isPlaying ? 'Pause' : 'Play'"
             @click="togglePlay"
@@ -2089,8 +2087,8 @@ function setupWebAudio(force = false) {
 
     if (!analyserNode) {
       analyserNode = audioContext.createAnalyser();
-      analyserNode.fftSize = 256; // 128 frequency bins
-      analyserNode.smoothingTimeConstant = 0.65; // Snappy beat reaction
+      analyserNode.fftSize = 128; // 64 frequency bins - ultra lightweight & fast FFT for 60FPS mobile
+      analyserNode.smoothingTimeConstant = 0.65;
       const bufferLength = analyserNode.frequencyBinCount;
       dataArray = new Uint8Array(bufferLength);
     }
@@ -2103,41 +2101,46 @@ function setupWebAudio(force = false) {
     if (!sourceNode && audioRef.value) {
       sourceNode = audioContext.createMediaElementSource(audioRef.value);
 
-      // Create 10-Band BiquadFilterNodes
-      eqNodes = EQ_FREQUENCIES.map((freq, idx) => {
-        const filter = audioContext.createBiquadFilter();
-        if (idx === 0) {
-          filter.type = 'lowshelf';
-        } else if (idx === EQ_FREQUENCIES.length - 1) {
-          filter.type = 'highshelf';
-        } else {
-          filter.type = 'peaking';
-          filter.Q.value = 1.4;
+      const isCustomEqActive = hasCustomEq.value || activeEqPreset.value !== 'flat';
+      if (isCustomEqActive || is8DEnabled.value) {
+        // Create 10-Band BiquadFilterNodes only when custom EQ/8D is active
+        eqNodes = EQ_FREQUENCIES.map((freq, idx) => {
+          const filter = audioContext.createBiquadFilter();
+          if (idx === 0) {
+            filter.type = 'lowshelf';
+          } else if (idx === EQ_FREQUENCIES.length - 1) {
+            filter.type = 'highshelf';
+          } else {
+            filter.type = 'peaking';
+            filter.Q.value = 1.4;
+          }
+          filter.frequency.value = freq;
+          filter.gain.value = eqGains.value[idx];
+          return filter;
+        });
+
+        if (audioContext.createStereoPanner) {
+          pannerNode = audioContext.createStereoPanner();
+          pannerNode.pan.value = 0;
         }
-        filter.frequency.value = freq;
-        filter.gain.value = eqGains.value[idx];
-        return filter;
-      });
 
-      // Create Stereo Panner Node for 8D Spatial Audio
-      if (audioContext.createStereoPanner) {
-        pannerNode = audioContext.createStereoPanner();
-        pannerNode.pan.value = 0;
+        let currentNode = sourceNode;
+        for (const node of eqNodes) {
+          currentNode.connect(node);
+          currentNode = node;
+        }
+
+        if (pannerNode) {
+          currentNode.connect(pannerNode);
+          currentNode = pannerNode;
+        }
+
+        currentNode.connect(gainNode);
+      } else {
+        // Ultra-lightweight direct connection: source -> gainNode -> analyser -> destination
+        sourceNode.connect(gainNode);
       }
 
-      // Connect graph: source -> eq[0] -> ... -> eq[9] -> panner -> gainNode -> analyser -> destination
-      let currentNode = sourceNode;
-      for (const node of eqNodes) {
-        currentNode.connect(node);
-        currentNode = node;
-      }
-
-      if (pannerNode) {
-        currentNode.connect(pannerNode);
-        currentNode = pannerNode;
-      }
-
-      currentNode.connect(gainNode);
       gainNode.connect(analyserNode);
       analyserNode.connect(audioContext.destination);
     }
@@ -2189,33 +2192,6 @@ function startVisualizerLoop() {
 
     if (hasRealAudioData) {
       analyserNode.getByteFrequencyData(dataArray);
-
-      // Bass Energy (bins 0-5: Kick & 808 Bassline)
-      let bassSum = 0;
-      for (let i = 0; i < 6; i++) {
-        bassSum += dataArray[i];
-      }
-      bassEnergy.value = Math.min(1, bassSum / (6 * 150));
-
-      // Vocal / Melodic Energy (bins 6-20)
-      let vocalSum = 0;
-      for (let i = 6; i < 20; i++) {
-        vocalSum += dataArray[i];
-      }
-      vocalEnergy.value = Math.min(1, vocalSum / (14 * 170));
-    } else if (isPlaying.value) {
-      // Dynamic simulated beat pulses for silky mobile playback
-      const t = performance.now() * 0.003;
-      bassEnergy.value = 0.5 + Math.sin(t * 2.8) * 0.35;
-      vocalEnergy.value = 0.45 + Math.cos(t * 2.0) * 0.3;
-    } else {
-      bassEnergy.value = Math.max(0, bassEnergy.value * 0.85 - 0.02);
-      vocalEnergy.value = Math.max(0, vocalEnergy.value * 0.85);
-      if (dataArray) {
-        for (let i = 0; i < dataArray.length; i++) {
-          dataArray[i] = Math.max(0, dataArray[i] * 0.85 - 2);
-        }
-      }
     }
 
     const color = visualizerColor.value || '#00e5ff';
@@ -2909,9 +2885,18 @@ watch(currentSongIndex, () => {
 
 function handleVisibilityChange() {
   if (typeof document === 'undefined') return;
-  if (isPlaying.value && audioRef.value) {
-    if (audioContext && audioContext.state === 'suspended') {
-      audioContext.resume().catch(() => {});
+  if (document.visibilityState === 'hidden') {
+    // Conserve 100% GPU/CPU when screen is locked or tab is minimized
+    if (animationFrameId) {
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = null;
+    }
+  } else if (document.visibilityState === 'visible') {
+    if (isPlaying.value && audioRef.value) {
+      if (audioContext && audioContext.state === 'suspended') {
+        audioContext.resume().catch(() => {});
+      }
+      startVisualizerLoop();
     }
   }
   updateSystemMediaSession();
